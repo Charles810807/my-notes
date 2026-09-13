@@ -1511,22 +1511,30 @@ async function generateLongImage(note) {
   loading.style.display = 'block';
   previewContainer.classList.add('hidden');
 
-  // 建立渲染容器 (使用 position: fixed 且移出螢幕可視區，避免在手機版撐大 document 寬度導致畫面縮小變形)
+  // 建立渲染容器 (放置在全域 DOM 底部，並給予固定隱藏容器包裹，避免被 WebKit/Safari 視為零可見度跳過或卡死)
   const renderDiv = document.createElement('div');
-  renderDiv.style.position = 'fixed';
-  renderDiv.style.left = '-9999px';
-  renderDiv.style.top = '0px';
+  renderDiv.id = 'export-render-canvas-target';
   renderDiv.style.width = '750px';
   renderDiv.style.maxWidth = '750px';
   renderDiv.style.minWidth = '750px';
-  renderDiv.style.zIndex = '-99999';
-  renderDiv.style.pointerEvents = 'none';
-  renderDiv.style.overflow = 'hidden';
   renderDiv.style.backgroundColor = '#ffffff';
   renderDiv.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Noto Sans TC', sans-serif";
   renderDiv.style.color = '#1e293b';
   renderDiv.style.padding = '36px';
   renderDiv.style.boxSizing = 'border-box';
+  renderDiv.style.position = 'relative';
+
+  // 使用 wrapper 將其隔離在極大負座標，但保留其 display: block 與 DOM 樹實體
+  const wrapperDiv = document.createElement('div');
+  wrapperDiv.style.position = 'fixed';
+  wrapperDiv.style.top = '0';
+  wrapperDiv.style.left = '-99999px';
+  wrapperDiv.style.width = '750px';
+  wrapperDiv.style.height = 'auto';
+  wrapperDiv.style.overflow = 'visible';
+  wrapperDiv.style.zIndex = '-99999';
+  wrapperDiv.style.pointerEvents = 'none';
+  wrapperDiv.appendChild(renderDiv);
 
   const loadingTitle = document.getElementById('export-loading-title');
   const loadingDetail = document.getElementById('export-loading-detail');
@@ -1541,7 +1549,7 @@ async function generateLongImage(note) {
   }
 
   updateExportProgress(15, '正在排版教學卡片...', '解析文字與標籤排版 (15%)');
-  await new Promise(r => setTimeout(r, 60));
+  await new Promise(r => setTimeout(r, 40));
 
   // 1. 標頭
   const categoryText = note.category || '生活記事';
@@ -1552,14 +1560,14 @@ async function generateLongImage(note) {
   let imagesHtml = '';
   if (note.images && note.images.length > 0) {
     updateExportProgress(35, '正在載入附加照片...', `處理附圖 1~${note.images.length} 張 (35%)`);
-    await new Promise(r => setTimeout(r, 60));
+    await new Promise(r => setTimeout(r, 40));
 
     const imgCards = note.images.map((src, i) => {
       const isDataOrBlob = typeof src === 'string' && (src.startsWith('data:') || src.startsWith('blob:'));
       const crossAttr = isDataOrBlob ? '' : 'crossorigin="anonymous"';
       return `
         <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; margin-bottom: 20px;">
-          <img src="${src}" ${crossAttr} style="width:100%; height:auto; display:block;" />
+          <img src="${src}" ${crossAttr} style="max-width:100%; width:auto; height:auto; display:block;" />
           <div style="font-size:13px; color:#64748b; padding:8px 0; font-weight:600;">附圖 ${i + 1}</div>
         </div>
       `;
@@ -1581,7 +1589,7 @@ async function generateLongImage(note) {
   let commentsHtml = '';
   if (note.comments && note.comments.length > 0) {
     updateExportProgress(50, '正在整理補充紀錄...', `整理 ${note.comments.length} 則時間軸補充 (50%)`);
-    await new Promise(r => setTimeout(r, 60));
+    await new Promise(r => setTimeout(r, 40));
 
     const cItems = note.comments.map((c, idx) => {
       let cImgHtml = '';
@@ -1593,7 +1601,7 @@ async function generateLongImage(note) {
               const crossAttr = isDataOrBlob ? '' : 'crossorigin="anonymous"';
               return `
                 <div style="background:#ffffff; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
-                  <img src="${img}" ${crossAttr} style="width:100%; height:auto; display:block;" />
+                  <img src="${img}" ${crossAttr} style="max-width:100%; width:auto; height:auto; display:block;" />
                   <div style="font-size:12px; color:#64748b; padding:6px 0; text-align:center; font-weight:600;">補充附圖 ${cImgIdx + 1}</div>
                 </div>
               `;
@@ -1643,67 +1651,45 @@ async function generateLongImage(note) {
     </div>
   `;
 
-  document.body.appendChild(renderDiv);
+  document.body.appendChild(wrapperDiv);
 
   try {
-    // 等待 renderDiv 內的所有圖片真正解碼完成，避免 html2canvas 渲染時阻塞或失敗卡住
+    // 檢查是否為行動裝置 (iPhone / Android)
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    const targetScale = isMobile ? 1.2 : 2.0;
+
+    // 等待所有圖片載入完成 (設定 2 秒寬限期，避免外部圖卡死)
     const imgs = Array.from(renderDiv.querySelectorAll('img'));
     if (imgs.length > 0) {
-      updateExportProgress(60, '正在等待圖片解碼...', `預載 ${imgs.length} 張圖片 (60%)`);
+      updateExportProgress(65, '正在確認圖片就緒...', `處理 ${imgs.length} 張圖片 (65%)`);
       await Promise.all(imgs.map(img => {
-        if (img.complete) {
-          return (img.decode ? img.decode().catch(() => {}) : Promise.resolve());
-        }
+        if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
         return new Promise(resolve => {
-          img.onload = () => { if (img.decode) img.decode().catch(() => {}).then(resolve); else resolve(); };
+          img.onload = resolve;
           img.onerror = resolve;
-          setTimeout(resolve, 3000); // 3秒超時防呆
+          setTimeout(resolve, 2000);
         });
       }));
     }
 
-    // 檢查是否為行動裝置 (iPhone / Android)
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
-    // 手機端避免 Canvas 超過 Safari 記憶體限制 (超過易全黑或卡住)，設定合適比例
-    const targetScale = isMobile ? 1.0 : 2.0;
-
     updateExportProgress(75, '正在高畫質渲染圖像...', '產生點陣圖檔 (75%)');
     await new Promise(r => setTimeout(r, 60));
 
+    // 使用標準 html2canvas 設定，不傳入非必要視窗限制
     const canvasOptions = {
       scale: targetScale,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
-      scrollX: 0,
-      scrollY: 0,
-      windowWidth: 750,
       logging: false
     };
 
-    // 帶超時保護的 html2canvas 執行
-    const runCanvasWithTimeout = (options, timeoutMs = 15000) => {
-      return Promise.race([
-        html2canvas(renderDiv, options),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('長圖渲染逾時，自動降級處理')), timeoutMs))
-      ]);
-    };
-
-    let canvas;
-    try {
-      canvas = await runCanvasWithTimeout(canvasOptions, 15000);
-    } catch (renderErr) {
-      console.warn('初次渲染遇到限制或逾時，自動以 scale=1 重試:', renderErr);
-      updateExportProgress(80, '正在自適應調整渲染...', '調整繪圖比例 (80%)');
-      canvasOptions.scale = 1.0;
-      canvasOptions.useCORS = false;
-      canvas = await runCanvasWithTimeout(canvasOptions, 15000);
-    }
+    const canvas = await html2canvas(renderDiv, canvasOptions);
 
     updateExportProgress(95, '正在生成圖像檔案...', '輸出 PNG 影像資料 (95%)');
     await new Promise(r => setTimeout(r, 50));
 
-    // 產生 Blob 與 Object URL（相比巨大 base64 DataURL，Blob 更節省 iPhone 記憶體且下載相容性最佳）
+    // 產生 Blob 與 Object URL
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('無法產生圖片二進位資料');
 
@@ -1721,7 +1707,6 @@ async function generateLongImage(note) {
     // 下載按鈕事件 (針對 iOS / 手機深度優化：支援 Web Share API 直接存入相簿)
     const btnDownload = document.getElementById('btn-download-export-image');
     btnDownload.onclick = async () => {
-      // 判斷是否支援 Web Share API 檔案分享 (iOS Safari 最佳體驗：點擊即可選「儲存影像」直接進相簿)
       const file = new File([blob], safeFilename, { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
@@ -1736,7 +1721,7 @@ async function generateLongImage(note) {
           if (shareErr.name !== 'AbortError') {
             console.log('Web Share 失敗，轉為常規下載:', shareErr);
           } else {
-            return; // 使用者主動取消分享
+            return;
           }
         }
       }
@@ -1772,8 +1757,8 @@ async function generateLongImage(note) {
     alert('合成長圖失敗: ' + (err.message || err));
     modal.classList.add('hidden');
   } finally {
-    if (renderDiv.parentNode) {
-      document.body.removeChild(renderDiv);
+    if (wrapperDiv.parentNode) {
+      document.body.removeChild(wrapperDiv);
     }
   }
 }
