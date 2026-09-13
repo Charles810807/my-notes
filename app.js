@@ -1,6 +1,7 @@
 
 // --- 本地伺服器同步模組 ---
-const SYNC_SERVER_URL = window.location.origin.startsWith('http') 
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const SYNC_SERVER_URL = isLocalhost 
   ? window.location.origin 
   : 'http://127.0.0.1:8766';
 let isServerOnline = false;
@@ -1498,14 +1499,16 @@ function initEventListeners() {
   dom.btnAddCategory.addEventListener('click', addNewCategoryPrompt);
   dom.btnQuickNewCategory.addEventListener('click', addNewCategoryPrompt);
 
-  dom.btnExportData.addEventListener('click', exportAllData);
-  dom.btnImportTrigger.addEventListener('click', () => dom.fileImport.click());
-  dom.fileImport.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleImportFile(e.target.files[0]);
-      e.target.value = '';
-    }
-  });
+  if (dom.btnExportData) dom.btnExportData.addEventListener('click', exportAllData);
+  if (dom.btnImportTrigger) dom.btnImportTrigger.addEventListener('click', () => dom.fileImport && dom.fileImport.click());
+  if (dom.fileImport) {
+    dom.fileImport.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleImportFile(e.target.files[0]);
+        e.target.value = '';
+      }
+    });
+  }
 
   // Google Drive 同步按鈕事件
   const btnGDriveLogin = document.getElementById('btn-gdrive-login');
@@ -1877,8 +1880,11 @@ async function initApp() {
       }
     };
 
-    doFullSync();
-    setInterval(doFullSync, 2000); // 每 2 秒進行一次雙向智慧比對，手機刪除電腦 2 秒內同步消失！
+    // 若在本地環境 (Localhost/127.0.0.1) 才啟動 Python 本地伺服器 (MDB) 的即時輪詢同步
+    if (isLocalhost) {
+      doFullSync();
+      setInterval(doFullSync, 2000);
+    }
 
 
     // 初始化 Google Drive 雲端同步模組
