@@ -1108,20 +1108,28 @@ function renderEditImagesPreview() {
 
 async function handleImageFiles(files) {
   if (!files || files.length === 0) return;
+  const fileArray = Array.from(files).filter(f => f.type && f.type.startsWith('image/'));
+  if (fileArray.length === 0) return;
   
-  showToast(`正在載入 ${files.length} 張圖片...`);
-  for (let file of files) {
-    if (!file.type.startsWith('image/')) continue;
+  showToast(`正在載入 1/${fileArray.length} 張圖片...`);
+  let loadedCount = 0;
+  for (let i = 0; i < fileArray.length; i++) {
+    const file = fileArray[i];
     try {
       const rawDataUrl = await readFileAsDataURL(file);
       const compressed = await compressImage(rawDataUrl);
       state.currentEditImages.push(compressed);
+      loadedCount++;
+      renderEditImagesPreview();
+      if (fileArray.length > 1) {
+        showToast(`正在載入 (${loadedCount}/${fileArray.length}) 張圖片...`);
+      }
     } catch (err) {
       console.error('讀取圖片錯誤:', err);
     }
   }
   renderEditImagesPreview();
-  showToast(`圖片已成功加入`);
+  showToast(`成功加入 ${loadedCount} 張圖片！`, 'success');
 }
 
 async function saveCurrentNote() {
@@ -1883,9 +1891,12 @@ function initEventListeners() {
   dom.btnSaveNote.addEventListener('click', saveCurrentNote);
 
   dom.btnAddImages.addEventListener('click', () => dom.fileImagesInput.click());
-  dom.fileImagesInput.addEventListener('change', (e) => {
-    handleImageFiles(e.target.files);
-    e.target.value = '';
+  dom.fileImagesInput.addEventListener('change', async (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      await handleImageFiles(files);
+      e.target.value = '';
+    }
   });
 
   dom.dropZone.addEventListener('dragover', (e) => {
