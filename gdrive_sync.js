@@ -35,7 +35,8 @@ class GoogleDriveSync {
               localStorage.setItem('gdrive_token_expiry', this.tokenExpiry.toString());
               this.fetchUserInfo().then(() => {
                 this.updateUI();
-                this.syncNow();
+                // 剛登入時：優先從雲端下載還原最新資料，避免把本地空白或舊資料覆蓋上去
+                this.restoreFromCloud(true);
               });
             }
           }
@@ -46,6 +47,11 @@ class GoogleDriveSync {
     }
 
     this.updateUI();
+
+    // 剛打開網頁/APP 時：優先從雲端下載還原最新資料
+    if (this.isLoggedIn()) {
+      this.restoreFromCloud(true);
+    }
   }
 
   isLoggedIn() {
@@ -235,7 +241,7 @@ class GoogleDriveSync {
   /**
    * 2. 從雲端還原 (下載)：從 Google 雲端硬碟下載最新的備份，並完全覆蓋本機記事
    */
-  async restoreFromCloud() {
+  async restoreFromCloud(isSilent = false) {
     if (!this.isLoggedIn()) {
       this.signIn();
       return;
@@ -243,8 +249,10 @@ class GoogleDriveSync {
 
     if (this.isSyncing) return;
 
-    if (!confirm('確定要從 Google Drive 下載並還原嗎？\n這將會以雲端上的最新檔案覆蓋目前本機的記事資料。')) {
-      return;
+    if (!isSilent) {
+      if (!confirm('確定要從 Google Drive 下載並還原嗎？\n這將會以雲端上的最新檔案覆蓋目前本機的記事資料。')) {
+        return;
+      }
     }
 
     this.isSyncing = true;
