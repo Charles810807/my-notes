@@ -47,17 +47,10 @@ class GoogleDriveSync {
 
     this.updateUI();
 
-    // 如果先前有 Token 且尚未過期，嘗試立即觸發一次同步
+    // 只有剛打開網頁/APP 時，自動向 Google Drive 檢查並同步一次最新資料
     if (this.isLoggedIn()) {
-      this.syncNow();
+      this.syncNow(true);
     }
-
-    // 每 15 秒檢查一次是否有雲端最新更新
-    this.syncInterval = setInterval(() => {
-      if (this.isLoggedIn() && !this.isSyncing) {
-        this.syncNow(true); // background silent sync
-      }
-    }, 15000);
   }
 
   isLoggedIn() {
