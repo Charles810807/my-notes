@@ -1101,6 +1101,16 @@ body {
   100% { transform: scale(1.2); opacity: 1; }
 }
 
+@keyframes sync-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sync-spin {
+  display: inline-block;
+  animation: sync-rotate 0.8s linear infinite;
+}
+
 .btn-gdrive-connect {
   color: #1a73e8 !important;
   font-weight: 600 !important;

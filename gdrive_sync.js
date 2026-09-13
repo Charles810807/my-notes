@@ -46,31 +46,6 @@ class GoogleDriveSync {
     }
 
     this.updateUI();
-
-    // 1. 剛打開網頁/APP 時，自動向 Google Drive 檢查並同步一次最新資料
-    if (this.isLoggedIn()) {
-      this.syncNow(true);
-    }
-
-    // 2. 切換回分頁或解鎖手機螢幕時 (焦點喚醒)，自動檢查雲端更新
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.isLoggedIn() && !this.isSyncing) {
-        // 距離上次同步超過 5 秒才觸發，避免頻繁觸發
-        if (Date.now() - this.lastSyncTime > 5000) {
-          this.syncNow(true);
-        }
-      }
-    });
-
-    // 3. 關閉網頁、關閉分頁或手機滑掉 APP 前，自動備份一次最新資料至雲端
-    const handleExitSync = () => {
-      if (this.isLoggedIn() && !this.isSyncing) {
-        // 關閉前立即觸發同步
-        this.syncNow(true);
-      }
-    };
-    window.addEventListener('beforeunload', handleExitSync);
-    window.addEventListener('pagehide', handleExitSync);
   }
 
   isLoggedIn() {
@@ -202,6 +177,12 @@ class GoogleDriveSync {
     if (this.isSyncing) return;
     this.isSyncing = true;
     this.updateStatusBadge('syncing', 'Google Drive 同步中...');
+
+    const btnManual = document.getElementById('btn-manual-sync');
+    if (btnManual) {
+      const icon = btnManual.querySelector('.material-symbols-rounded');
+      if (icon) icon.classList.add('sync-spin');
+    }
 
     try {
       const fileId = await this.findOrCreateDriveFile();
@@ -340,6 +321,11 @@ class GoogleDriveSync {
       }
     } finally {
       this.isSyncing = false;
+      const btnManual = document.getElementById('btn-manual-sync');
+      if (btnManual) {
+        const icon = btnManual.querySelector('.material-symbols-rounded');
+        if (icon) icon.classList.remove('sync-spin');
+      }
     }
   }
 

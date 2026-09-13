@@ -130,15 +130,10 @@ async function syncRestoreToServer(notes, categories) {
   return null;
 }
 
-// 雲端 Google Drive 防抖即時觸發
-let cloudSyncTimer = null;
+// 雲端同步防抖 (已改為全手動同步模式，平常操作不再自動上傳)
 function triggerCloudSync() {
-  if (window.gDriveSync && window.gDriveSync.isLoggedIn()) {
-    if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
-    cloudSyncTimer = setTimeout(() => {
-      window.gDriveSync.syncNow(true);
-    }, 1500); // 編輯後 1.5 秒自動靜默同步至 Google Drive
-  }
+  // 全手動模式：由使用者手動點擊 🔄 同步按鈕時才執行
+  return;
 }
 
 /**
