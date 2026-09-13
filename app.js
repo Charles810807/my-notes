@@ -1511,13 +1511,17 @@ async function generateLongImage(note) {
   loading.style.display = 'block';
   previewContainer.classList.add('hidden');
 
-  // 建立渲染容器 (放置在螢幕最下方視窗外或底層，絕不能設 opacity: 0 或 display: none，否則 html2canvas 會繪出全白)
+  // 建立渲染容器 (使用 position: fixed 且移出螢幕可視區，避免在手機版撐大 document 寬度導致畫面縮小變形)
   const renderDiv = document.createElement('div');
-  renderDiv.style.position = 'absolute';
-  renderDiv.style.left = '0px';
-  renderDiv.style.top = `${document.documentElement.scrollHeight + 500}px`;
+  renderDiv.style.position = 'fixed';
+  renderDiv.style.left = '-9999px';
+  renderDiv.style.top = '0px';
   renderDiv.style.width = '750px';
+  renderDiv.style.maxWidth = '750px';
+  renderDiv.style.minWidth = '750px';
   renderDiv.style.zIndex = '-99999';
+  renderDiv.style.pointerEvents = 'none';
+  renderDiv.style.overflow = 'hidden';
   renderDiv.style.backgroundColor = '#ffffff';
   renderDiv.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Noto Sans TC', sans-serif";
   renderDiv.style.color = '#1e293b';
@@ -1537,7 +1541,7 @@ async function generateLongImage(note) {
   }
 
   updateExportProgress(15, '正在排版教學卡片...', '解析文字與標籤排版 (15%)');
-  await new Promise(r => setTimeout(r, 80));
+  await new Promise(r => setTimeout(r, 60));
 
   // 1. 標頭
   const categoryText = note.category || '生活記事';
@@ -1548,14 +1552,18 @@ async function generateLongImage(note) {
   let imagesHtml = '';
   if (note.images && note.images.length > 0) {
     updateExportProgress(35, '正在載入附加照片...', `處理附圖 1~${note.images.length} 張 (35%)`);
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(r => setTimeout(r, 60));
 
-    const imgCards = note.images.map((src, i) => `
-      <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; margin-bottom: 20px;">
-        <img src="${src}" crossorigin="anonymous" style="width:100%; height:auto; display:block;" />
-        <div style="font-size:13px; color:#64748b; padding:8px 0; font-weight:600;">附圖 ${i + 1}</div>
-      </div>
-    `).join('');
+    const imgCards = note.images.map((src, i) => {
+      const isDataOrBlob = typeof src === 'string' && (src.startsWith('data:') || src.startsWith('blob:'));
+      const crossAttr = isDataOrBlob ? '' : 'crossorigin="anonymous"';
+      return `
+        <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; margin-bottom: 20px;">
+          <img src="${src}" ${crossAttr} style="width:100%; height:auto; display:block;" />
+          <div style="font-size:13px; color:#64748b; padding:8px 0; font-weight:600;">附圖 ${i + 1}</div>
+        </div>
+      `;
+    }).join('');
 
     imagesHtml = `
       <div style="margin-top:28px; padding-top:24px; border-top:1px dashed #cbd5e1;">
@@ -1573,19 +1581,23 @@ async function generateLongImage(note) {
   let commentsHtml = '';
   if (note.comments && note.comments.length > 0) {
     updateExportProgress(50, '正在整理補充紀錄...', `整理 ${note.comments.length} 則時間軸補充 (50%)`);
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(r => setTimeout(r, 60));
 
     const cItems = note.comments.map((c, idx) => {
       let cImgHtml = '';
       if (c.images && c.images.length > 0) {
         cImgHtml = `
           <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
-            ${c.images.map((img, cImgIdx) => `
-              <div style="background:#ffffff; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
-                <img src="${img}" crossorigin="anonymous" style="width:100%; height:auto; display:block;" />
-                <div style="font-size:12px; color:#64748b; padding:6px 0; text-align:center; font-weight:600;">補充附圖 ${cImgIdx + 1}</div>
-              </div>
-            `).join('')}
+            ${c.images.map((img, cImgIdx) => {
+              const isDataOrBlob = typeof img === 'string' && (img.startsWith('data:') || img.startsWith('blob:'));
+              const crossAttr = isDataOrBlob ? '' : 'crossorigin="anonymous"';
+              return `
+                <div style="background:#ffffff; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
+                  <img src="${img}" ${crossAttr} style="width:100%; height:auto; display:block;" />
+                  <div style="font-size:12px; color:#64748b; padding:6px 0; text-align:center; font-weight:600;">補充附圖 ${cImgIdx + 1}</div>
+                </div>
+              `;
+            }).join('')}
           </div>
         `;
       }
@@ -1634,14 +1646,30 @@ async function generateLongImage(note) {
   document.body.appendChild(renderDiv);
 
   try {
-    // 檢查是否為行動裝置
+    // 等待 renderDiv 內的所有圖片真正解碼完成，避免 html2canvas 渲染時阻塞或失敗卡住
+    const imgs = Array.from(renderDiv.querySelectorAll('img'));
+    if (imgs.length > 0) {
+      updateExportProgress(60, '正在等待圖片解碼...', `預載 ${imgs.length} 張圖片 (60%)`);
+      await Promise.all(imgs.map(img => {
+        if (img.complete) {
+          return (img.decode ? img.decode().catch(() => {}) : Promise.resolve());
+        }
+        return new Promise(resolve => {
+          img.onload = () => { if (img.decode) img.decode().catch(() => {}).then(resolve); else resolve(); };
+          img.onerror = resolve;
+          setTimeout(resolve, 3000); // 3秒超時防呆
+        });
+      }));
+    }
+
+    // 檢查是否為行動裝置 (iPhone / Android)
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
-    const targetScale = isMobile ? 1.2 : 2;
+    // 手機端避免 Canvas 超過 Safari 記憶體限制 (超過易全黑或卡住)，設定合適比例
+    const targetScale = isMobile ? 1.0 : 2.0;
 
-    updateExportProgress(70, '正在高畫質渲染圖像...', `產生點陣圖檔 (70%)`);
-    await new Promise(r => setTimeout(r, 120));
+    updateExportProgress(75, '正在高畫質渲染圖像...', '產生點陣圖檔 (75%)');
+    await new Promise(r => setTimeout(r, 60));
 
-    // 渲染 Canvas：顯式指定 scrollX/Y 與視窗寬度，避免手機版 viewport 偏移造成空白
     const canvasOptions = {
       scale: targetScale,
       useCORS: true,
@@ -1649,68 +1677,104 @@ async function generateLongImage(note) {
       backgroundColor: '#ffffff',
       scrollX: 0,
       scrollY: 0,
-      windowWidth: 800,
+      windowWidth: 750,
       logging: false
+    };
+
+    // 帶超時保護的 html2canvas 執行
+    const runCanvasWithTimeout = (options, timeoutMs = 15000) => {
+      return Promise.race([
+        html2canvas(renderDiv, options),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('長圖渲染逾時，自動降級處理')), timeoutMs))
+      ]);
     };
 
     let canvas;
     try {
-      canvas = await html2canvas(renderDiv, canvasOptions);
+      canvas = await runCanvasWithTimeout(canvasOptions, 15000);
     } catch (renderErr) {
-      console.warn('初次渲染遇到限制，自動降為標準比例重試:', renderErr);
-      canvasOptions.scale = 1;
-      canvas = await html2canvas(renderDiv, canvasOptions);
+      console.warn('初次渲染遇到限制或逾時，自動以 scale=1 重試:', renderErr);
+      updateExportProgress(80, '正在自適應調整渲染...', '調整繪圖比例 (80%)');
+      canvasOptions.scale = 1.0;
+      canvasOptions.useCORS = false;
+      canvas = await runCanvasWithTimeout(canvasOptions, 15000);
     }
 
     updateExportProgress(95, '正在生成圖像檔案...', '輸出 PNG 影像資料 (95%)');
-    await new Promise(r => setTimeout(r, 60));
+    await new Promise(r => setTimeout(r, 50));
 
-    const dataUrl = canvas.toDataURL('image/png');
-    previewImg.src = dataUrl;
+    // 產生 Blob 與 Object URL（相比巨大 base64 DataURL，Blob 更節省 iPhone 記憶體且下載相容性最佳）
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('無法產生圖片二進位資料');
+
+    const objectUrl = URL.createObjectURL(blob);
+    previewImg.src = objectUrl;
     updateExportProgress(100, '長圖合成完成！', '長圖已準備完畢 (100%)');
 
     setTimeout(() => {
       loading.style.display = 'none';
       previewContainer.classList.remove('hidden');
-    }, 200);
+    }, 150);
 
-    // 下載按鈕事件
+    const safeFilename = `【教學】${sanitizeFilename(note.title || '記事')}.png`;
+
+    // 下載按鈕事件 (針對 iOS / 手機深度優化：支援 Web Share API 直接存入相簿)
     const btnDownload = document.getElementById('btn-download-export-image');
-    btnDownload.onclick = () => {
+    btnDownload.onclick = async () => {
+      // 判斷是否支援 Web Share API 檔案分享 (iOS Safari 最佳體驗：點擊即可選「儲存影像」直接進相簿)
+      const file = new File([blob], safeFilename, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: note.title || '個人筆記',
+            text: '匯出長圖片'
+          });
+          showToast('已開啟分享選單，可直接點選「儲存影像」至相簿！');
+          return;
+        } catch (shareErr) {
+          if (shareErr.name !== 'AbortError') {
+            console.log('Web Share 失敗，轉為常規下載:', shareErr);
+          } else {
+            return; // 使用者主動取消分享
+          }
+        }
+      }
+
+      // 常規下載流程
       const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `【教學】${sanitizeFilename(note.title || '記事')}.png`;
+      a.href = objectUrl;
+      a.download = safeFilename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      showToast('長圖已成功下載至您的裝置！');
+      showToast('長圖已開始下載！若使用 iPhone 請在跳出選單點「檢視」後長按儲存圖片');
     };
 
     // 複製圖片按鈕事件 (Clipboard Item)
     const btnCopy = document.getElementById('btn-copy-export-image');
     btnCopy.onclick = async () => {
       try {
-        canvas.toBlob(async (blob) => {
-          if (!blob) {
-            showToast('複製圖片失敗，請直接點擊下載長圖');
-            return;
-          }
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': blob })
-          ]);
-          showToast('長圖已複製！可直接至通訊軟體 (LINE/Teams) 按 Ctrl+V 貼上！');
-        });
+        if (!navigator.clipboard || !window.ClipboardItem) {
+          throw new Error('Clipboard API 不支援');
+        }
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        showToast('長圖已複製！可直接至通訊軟體 (LINE/Teams) 按貼上！');
       } catch (err) {
-        showToast('您的瀏覽器不支援直接複製圖片，請使用「下載長圖」！');
+        showToast('此瀏覽器不支援直接複製圖片，請直接點擊「下載長圖」或長按圖片儲存！');
       }
     };
 
   } catch (err) {
     console.error('合成長圖失敗:', err);
-    alert('合成長圖失敗: ' + err.message);
+    alert('合成長圖失敗: ' + (err.message || err));
     modal.classList.add('hidden');
   } finally {
-    document.body.removeChild(renderDiv);
+    if (renderDiv.parentNode) {
+      document.body.removeChild(renderDiv);
+    }
   }
 }
 async function urlToDataURL(url) {
