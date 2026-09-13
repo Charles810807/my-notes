@@ -349,40 +349,29 @@ class GoogleDriveSync {
 
   updateUI() {
     const btnSignIn = document.getElementById('btn-gdrive-login');
-    const actionsGroup = document.getElementById('gdrive-actions-group');
+    const btnBackup = document.getElementById('btn-gdrive-backup');
+    const btnRestore = document.getElementById('btn-gdrive-restore');
     const badge = document.getElementById('gdrive-sync-badge');
-    const userLabel = document.getElementById('gdrive-user-label');
-    const topUpload = document.getElementById('btn-top-cloud-upload');
-    const topDownload = document.getElementById('btn-top-cloud-download');
 
     if (!btnSignIn) return;
 
     if (this.isLoggedIn()) {
-      btnSignIn.innerHTML = '<span class="material-symbols-rounded">logout</span><span>登出 Google</span>';
-      btnSignIn.title = `已登入: ${this.userEmail || 'Google 帳號'}`;
-      btnSignIn.classList.remove('btn-gdrive-connect');
-      btnSignIn.classList.add('btn-gdrive-disconnect');
+      btnSignIn.innerHTML = '<span class="material-symbols-rounded">logout</span>';
+      btnSignIn.title = `已登入: ${this.userEmail || 'Google 帳號'} (點擊登出)`;
+      btnSignIn.style.color = '#ef4444';
 
-      if (actionsGroup) actionsGroup.style.display = 'flex';
+      if (btnBackup) btnBackup.style.display = 'inline-flex';
+      if (btnRestore) btnRestore.style.display = 'inline-flex';
       if (badge) badge.style.display = 'flex';
-      if (userLabel) {
-        userLabel.style.display = 'block';
-        userLabel.textContent = this.userEmail ? `帳號: ${this.userEmail}` : 'Google 雲端已連結';
-      }
-      if (topUpload) topUpload.style.display = 'inline-flex';
-      if (topDownload) topDownload.style.display = 'inline-flex';
       this.updateStatusBadge('online', '已連結 Google Drive');
     } else {
-      btnSignIn.innerHTML = '<span class="material-symbols-rounded">cloud_sync</span><span>連結 Google Drive</span>';
-      btnSignIn.title = '登入 Google 帳號，達成手機與電腦隨時備份與還原';
-      btnSignIn.classList.add('btn-gdrive-connect');
-      btnSignIn.classList.remove('btn-gdrive-disconnect');
+      btnSignIn.innerHTML = '<span class="material-symbols-rounded">cloud_sync</span>';
+      btnSignIn.title = '連結 Google Drive (點擊登入)';
+      btnSignIn.style.color = 'var(--text-secondary)';
 
-      if (actionsGroup) actionsGroup.style.display = 'none';
+      if (btnBackup) btnBackup.style.display = 'none';
+      if (btnRestore) btnRestore.style.display = 'none';
       if (badge) badge.style.display = 'none';
-      if (userLabel) userLabel.style.display = 'none';
-      if (topUpload) topUpload.style.display = 'none';
-      if (topDownload) topDownload.style.display = 'none';
     }
   }
 }

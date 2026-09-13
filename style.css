@@ -255,27 +255,28 @@ body {
 /* 側邊欄底部工具區 */
 .sidebar-footer {
   border-top: 1px solid var(--border-color);
-  padding-top: 10px;
+  padding-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
-.local-icon-toolbar .icon-btn {
-  width: 38px;
-  height: 38px;
+.bottom-icon-toolbar .icon-btn {
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-input);
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid transparent;
 }
 
-.local-icon-toolbar .icon-btn:hover {
+.bottom-icon-toolbar .icon-btn:hover {
   background: var(--primary-light);
-  color: var(--primary-dark) !important;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: rgba(6, 199, 85, 0.2);
 }
 
 /* -------------------- 記事清單區 Notes List -------------------- */
