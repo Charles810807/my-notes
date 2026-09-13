@@ -171,8 +171,71 @@ class GoogleDriveSync {
     return null;
   }
 
+  // 顯示進度彈窗
+  showProgressModal(title, detail, icon = 'cloud_upload') {
+    const modal = document.getElementById('cloud-progress-modal');
+    const titleEl = document.getElementById('cloud-progress-title');
+    const detailEl = document.getElementById('cloud-progress-detail');
+    const barEl = document.getElementById('cloud-progress-bar');
+    const bytesEl = document.getElementById('cloud-progress-bytes');
+    const percentEl = document.getElementById('cloud-progress-percent');
+    const iconEl = document.getElementById('cloud-progress-icon');
+
+    if (modal) {
+      modal.classList.remove('hidden');
+      if (titleEl) titleEl.textContent = title;
+      if (detailEl) detailEl.textContent = detail;
+      if (iconEl) iconEl.textContent = icon;
+      if (barEl) barEl.style.width = '0%';
+      if (bytesEl) bytesEl.textContent = '0 KB / 0 KB';
+      if (percentEl) percentEl.textContent = '0%';
+    }
+  }
+
+  // 更新進度條
+  updateProgressModal(loaded, total, statusText = '') {
+    const barEl = document.getElementById('cloud-progress-bar');
+    const bytesEl = document.getElementById('cloud-progress-bytes');
+    const percentEl = document.getElementById('cloud-progress-percent');
+    const detailEl = document.getElementById('cloud-progress-detail');
+
+    let percent = 0;
+    if (total > 0) {
+      percent = Math.min(100, Math.round((loaded / total) * 100));
+    }
+
+    if (barEl) barEl.style.width = `${percent}%`;
+    if (percentEl) percentEl.textContent = `${percent}%`;
+
+    const formatBytes = (bytes) => {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    };
+
+    if (bytesEl) {
+      if (total > 0) {
+        bytesEl.textContent = `${formatBytes(loaded)} / ${formatBytes(total)}`;
+      } else {
+        bytesEl.textContent = formatBytes(loaded);
+      }
+    }
+
+    if (statusText && detailEl) {
+      detailEl.textContent = statusText;
+    }
+  }
+
+  // 隱藏進度彈窗
+  hideProgressModal() {
+    const modal = document.getElementById('cloud-progress-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
+  }
+
   /**
-   * 1. 備份至雲端 (上傳)：將當前本機所有的記事與圖片完整覆蓋儲存到 Google 雲端硬碟
+   * 1. 備份至雲端 (上傳)：將當前本機所有的記事與圖片完整覆蓋儲存到 Google 雲端硬碟 (含進度百分比)
    */
   async backupToCloud() {
     if (!this.isLoggedIn()) {
@@ -190,7 +253,10 @@ class GoogleDriveSync {
       if (icon) icon.classList.add('sync-spin');
     }
 
+    this.showProgressModal('備份至 Google Drive', '正在準備記事與圖文封包...', 'cloud_upload');
+
     try {
+      this.updateProgressModal(0, 0, '正在尋找 Google 雲端硬碟檔案...');
       const fileId = await this.findOrCreateDriveFile();
       if (!fileId) throw new Error('無法存取 Google 雲端硬碟檔案');
 
@@ -204,18 +270,36 @@ class GoogleDriveSync {
         notes: allNotes
       };
 
-      const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json; charset=UTF-8'
-        },
-        body: JSON.stringify(payload)
-      });
+      const payloadStr = JSON.stringify(payload);
+      const totalBytes = new Blob([payloadStr]).size;
 
-      if (!uploadRes.ok) {
-        throw new Error(`上傳更新至 Drive 失敗: ${uploadRes.statusText}`);
-      }
+      this.updateProgressModal(0, totalBytes, `即將上傳 ${allNotes.length} 則記事 (總計 ${Math.round(totalBytes / 1024)} KB)...`);
+
+      // 使用 XMLHttpRequest 精確監聽上傳 byte 數與百分比
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PATCH', `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`);
+        xhr.setRequestHeader('Authorization', `Bearer ${this.accessToken}`);
+        xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            this.updateProgressModal(event.loaded, event.total, '正在上傳備份封包至雲端...');
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            this.updateProgressModal(totalBytes, totalBytes, '上傳完成！正在確認儲存...');
+            resolve(xhr.response);
+          } else {
+            reject(new Error(`上傳至 Drive 失敗 (代碼: ${xhr.status})`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('網路連線失敗，請檢查網路狀態'));
+        xhr.send(payloadStr);
+      });
 
       this.lastSyncTime = Date.now();
       this.updateStatusBadge('online', '已成功備份至雲端');
@@ -227,9 +311,10 @@ class GoogleDriveSync {
         this.signOut();
       } else {
         this.updateStatusBadge('offline', '備份失敗');
-        showToast('備份失敗，請檢查網路連線', 'error');
+        showToast('備份失敗: ' + err.message, 'error');
       }
     } finally {
+      setTimeout(() => this.hideProgressModal(), 400);
       this.isSyncing = false;
       if (btnUpload) {
         const icon = btnUpload.querySelector('.material-symbols-rounded');
@@ -239,7 +324,7 @@ class GoogleDriveSync {
   }
 
   /**
-   * 2. 從雲端還原 (下載)：從 Google 雲端硬碟下載最新的備份，並完全覆蓋本機記事
+   * 2. 從雲端還原 (下載)：從 Google 雲端硬碟下載最新的備份，並完全覆蓋本機記事 (含進度百分比)
    */
   async restoreFromCloud(isSilent = false) {
     if (!this.isLoggedIn()) {
@@ -258,26 +343,52 @@ class GoogleDriveSync {
       if (icon) icon.classList.add('sync-spin');
     }
 
+    if (!isSilent) {
+      this.showProgressModal('從雲端還原記事', '正在連接 Google 雲端硬碟...', 'cloud_download');
+    }
+
     try {
       const fileId = await this.findOrCreateDriveFile();
       if (!fileId) throw new Error('無法找到 Google 雲端硬碟檔案');
 
-      const downloadRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&_t=${Date.now()}`, {
-        headers: { Authorization: `Bearer ${this.accessToken}` }
+      let responseText = '';
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&_t=${Date.now()}`);
+        xhr.setRequestHeader('Authorization', `Bearer ${this.accessToken}`);
+
+        xhr.onprogress = (event) => {
+          if (event.lengthComputable && !isSilent) {
+            this.updateProgressModal(event.loaded, event.total, '正在下載雲端備份...');
+          } else if (!isSilent) {
+            this.updateProgressModal(event.loaded, 0, '正在傳輸雲端封包...');
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            responseText = xhr.responseText;
+            resolve(responseText);
+          } else {
+            reject(new Error(`下載 Drive 檔案失敗: ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('網路下載中斷，請重試'));
+        xhr.send();
       });
 
-      if (!downloadRes.ok) {
-        throw new Error(`下載 Google Drive 檔案失敗: ${downloadRes.statusText}`);
-      }
-
-      const text = await downloadRes.text();
-      if (!text || text.trim().length === 0) {
+      if (!responseText || responseText.trim().length === 0) {
         throw new Error('雲端上的備份檔案為空！');
       }
 
-      const cloudData = JSON.parse(text);
+      const cloudData = JSON.parse(responseText);
       if (!cloudData || !Array.isArray(cloudData.notes)) {
         throw new Error('雲端資料格式不符');
+      }
+
+      if (!isSilent) {
+        this.updateProgressModal(100, 100, `正在將 ${cloudData.notes.length} 則記事寫入本機資料庫...`);
       }
 
       // 1. 清空本機現有筆記並全面寫入雲端筆記
@@ -309,7 +420,9 @@ class GoogleDriveSync {
 
       this.lastSyncTime = Date.now();
       this.updateStatusBadge('online', '已從雲端還原');
-      showToast(`還原成功！已完整還原 ${cloudData.notes.length} 則記事`, 'success');
+      if (!isSilent) {
+        showToast(`還原成功！已完整還原 ${cloudData.notes.length} 則記事`, 'success');
+      }
 
     } catch (err) {
       console.error('從 Google Drive 還原失敗:', err);
@@ -317,9 +430,12 @@ class GoogleDriveSync {
         this.signOut();
       } else {
         this.updateStatusBadge('offline', '還原失敗');
-        showToast('還原失敗: ' + err.message, 'error');
+        if (!isSilent) showToast('還原失敗: ' + err.message, 'error');
       }
     } finally {
+      if (!isSilent) {
+        setTimeout(() => this.hideProgressModal(), 400);
+      }
       this.isSyncing = false;
       if (btnDownload) {
         const icon = btnDownload.querySelector('.material-symbols-rounded');

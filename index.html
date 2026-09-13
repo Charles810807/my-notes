@@ -317,6 +317,27 @@
     </div>
   </div>
 
+  <!-- 雲端同步進度彈窗 (上傳/下載百分比) -->
+  <div id="cloud-progress-modal" class="modal hidden" style="z-index: 2000;">
+    <div class="modal-backdrop" style="background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(2px);"></div>
+    <div class="modal-content" style="max-width: 380px; padding: 24px 20px; border-radius: 16px; text-align: center; box-shadow: var(--shadow-xl);">
+      <div style="display: flex; justify-content: center; margin-bottom: 12px;">
+        <span id="cloud-progress-icon" class="material-symbols-rounded sync-spin" style="font-size: 38px; color: var(--primary);">cloud_upload</span>
+      </div>
+      <h3 id="cloud-progress-title" style="font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">正在同步中...</h3>
+      <p id="cloud-progress-detail" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">正在連接 Google 雲端硬碟</p>
+      
+      <!-- 進度條容器 -->
+      <div style="background: #e2e8f0; border-radius: 999px; height: 10px; width: 100%; overflow: hidden; margin-bottom: 10px;">
+        <div id="cloud-progress-bar" style="background: linear-gradient(90deg, #6366f1, #3b82f6); height: 100%; width: 0%; border-radius: 999px; transition: width 0.15s ease;"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-secondary); font-weight: 500;">
+        <span id="cloud-progress-bytes">0 KB / 0 KB</span>
+        <span id="cloud-progress-percent" style="color: var(--primary); font-weight: 700;">0%</span>
+      </div>
+    </div>
+  </div>
+
   <!-- 提示訊息 Toast -->
   <div id="toast" class="toast hidden"></div>
 
