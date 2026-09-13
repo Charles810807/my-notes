@@ -54,6 +54,10 @@ function updateSyncStatusUI(online) {
 }
 
 async function syncNoteToServer(note) {
+  // 只在本地伺服器模式 (localhost / 127.0.0.1) 才將圖片轉存為硬碟 data/images/ 實體檔案
+  // 若在 GitHub Pages 或雲端環境，維持完整的圖片資料以供跨設備與 Google Drive 同步
+  if (!isLocalhost) return;
+
   // 如果尚未連線，先嘗試連線一次
   if (!isServerOnline) {
     await checkSyncServer();
