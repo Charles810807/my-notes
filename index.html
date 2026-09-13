@@ -65,20 +65,28 @@
 
       <!-- 側邊欄底部工具區 -->
       <div class="sidebar-footer">
-        <!-- Google Drive 雲端全自動同步區塊 -->
+        <!-- Google Drive 雲端備份與還原區塊 (獨立分開) -->
         <div id="gdrive-section" class="gdrive-sync-section" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border-color);">
           <div id="gdrive-sync-badge" class="sync-status-badge" style="display: none; margin-bottom: 6px;">
             <span class="sync-dot offline"></span><span>Google Drive 未連結</span>
           </div>
           <div id="gdrive-user-label" style="display: none; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; word-break: break-all; padding: 0 4px;"></div>
-          <button id="btn-gdrive-login" class="btn btn-text btn-gdrive-connect" title="連結 Google Drive 自動同步">
+          
+          <button id="btn-gdrive-login" class="btn btn-text btn-gdrive-connect" title="連結 Google Drive 帳號">
             <span class="material-symbols-rounded">cloud_sync</span>
-            <span>連結 Google Drive 同步</span>
+            <span>連結 Google Drive</span>
           </button>
-          <button id="btn-gdrive-sync" class="btn btn-text" style="display: none; color: #16a34a; font-weight: 600;" title="立即與 Google Drive 進行雙向同步">
-            <span class="material-symbols-rounded">sync</span>
-            <span>立即雲端雙向同步</span>
-          </button>
+          
+          <div id="gdrive-actions-group" style="display: none; flex-direction: column; gap: 4px; margin-top: 4px;">
+            <button id="btn-gdrive-backup" class="btn btn-text" style="color: #2563eb; font-weight: 600;" title="將目前本機的所有記事與照片完整上傳備份至 Google Drive">
+              <span class="material-symbols-rounded">cloud_upload</span>
+              <span>備份到雲端 (上傳)</span>
+            </button>
+            <button id="btn-gdrive-restore" class="btn btn-text" style="color: #16a34a; font-weight: 600;" title="從 Google Drive 下載雲端備份並完全還原至本機">
+              <span class="material-symbols-rounded">cloud_download</span>
+              <span>從雲端還原 (下載)</span>
+            </button>
+          </div>
         </div>
 
         <button id="btn-mobile-connect" class="btn btn-text" style="color: var(--primary); font-weight: 600;" title="在手機上開啟記事本">
@@ -113,9 +121,12 @@
             <span id="filtered-count" class="badge">0 則</span>
           </div>
         </div>
-        <div class="list-actions" style="display: flex; align-items: center; gap: 8px;">
-          <button id="btn-manual-sync" class="icon-btn" title="手動同步 Google Drive 最新資料" style="color: var(--primary); background: var(--primary-light); border-radius: var(--radius-sm); padding: 4px 6px;">
-            <span class="material-symbols-rounded" style="font-size: 20px;">sync</span>
+        <div class="list-actions" style="display: flex; align-items: center; gap: 6px;">
+          <button id="btn-top-cloud-upload" class="icon-btn" title="上傳備份到雲端 (Google Drive)" style="color: #2563eb; background: #eff6ff; border-radius: var(--radius-sm); padding: 4px 6px;">
+            <span class="material-symbols-rounded" style="font-size: 20px;">cloud_upload</span>
+          </button>
+          <button id="btn-top-cloud-download" class="icon-btn" title="從雲端下載還原 (Google Drive)" style="color: #16a34a; background: #f0fdf4; border-radius: var(--radius-sm); padding: 4px 6px;">
+            <span class="material-symbols-rounded" style="font-size: 20px;">cloud_download</span>
           </button>
           <select id="sort-select" class="select-dropdown">
             <option value="updated-desc">更新時間 (新到舊)</option>

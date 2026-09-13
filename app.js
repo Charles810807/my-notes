@@ -1522,28 +1522,35 @@ function initEventListeners() {
         }
       }
     });
-  }
-  if (btnGDriveSync) {
-    btnGDriveSync.addEventListener('click', () => {
-      if (window.gDriveSync) {
-        window.gDriveSync.syncNow(false);
-      }
+  // 側邊欄「備份到雲端」按鈕
+  const btnGDriveBackup = document.getElementById('btn-gdrive-backup');
+  if (btnGDriveBackup) {
+    btnGDriveBackup.addEventListener('click', () => {
+      if (window.gDriveSync) window.gDriveSync.backupToCloud();
     });
   }
 
-  // 頂部清單列的手動同步小按鈕
-  const btnManualSync = document.getElementById('btn-manual-sync');
-  if (btnManualSync) {
-    btnManualSync.addEventListener('click', () => {
-      if (window.gDriveSync) {
-        if (!window.gDriveSync.isLoggedIn()) {
-          window.gDriveSync.signIn();
-        } else {
-          window.gDriveSync.syncNow(false);
-        }
-      } else {
-        showToast('雲端模組載入中...', 'info');
-      }
+  // 側邊欄「從雲端還原」按鈕
+  const btnGDriveRestore = document.getElementById('btn-gdrive-restore');
+  if (btnGDriveRestore) {
+    btnGDriveRestore.addEventListener('click', () => {
+      if (window.gDriveSync) window.gDriveSync.restoreFromCloud();
+    });
+  }
+
+  // 頂部「雲端上傳備份 ☁️⬆️」快捷按鈕
+  const btnTopCloudUpload = document.getElementById('btn-top-cloud-upload');
+  if (btnTopCloudUpload) {
+    btnTopCloudUpload.addEventListener('click', () => {
+      if (window.gDriveSync) window.gDriveSync.backupToCloud();
+    });
+  }
+
+  // 頂部「雲端下載還原 ☁️⬇️」快捷按鈕
+  const btnTopCloudDownload = document.getElementById('btn-top-cloud-download');
+  if (btnTopCloudDownload) {
+    btnTopCloudDownload.addEventListener('click', () => {
+      if (window.gDriveSync) window.gDriveSync.restoreFromCloud();
     });
   }
 

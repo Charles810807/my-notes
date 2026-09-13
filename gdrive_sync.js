@@ -166,21 +166,21 @@ class GoogleDriveSync {
   }
 
   /**
-   * 雙向智能同步：比對雲端與本機最新時間戳記
+   * 1. 備份至雲端 (上傳)：將當前本機所有的記事與圖片完整覆蓋儲存到 Google 雲端硬碟
    */
-  async syncNow(isSilent = false) {
+  async backupToCloud() {
     if (!this.isLoggedIn()) {
-      if (!isSilent) this.signIn();
+      this.signIn();
       return;
     }
 
     if (this.isSyncing) return;
     this.isSyncing = true;
-    this.updateStatusBadge('syncing', 'Google Drive 同步中...');
+    this.updateStatusBadge('syncing', '正在備份至雲端...');
 
-    const btnManual = document.getElementById('btn-manual-sync');
-    if (btnManual) {
-      const icon = btnManual.querySelector('.material-symbols-rounded');
+    const btnUpload = document.getElementById('btn-top-cloud-upload');
+    if (btnUpload) {
+      const icon = btnUpload.querySelector('.material-symbols-rounded');
       if (icon) icon.classList.add('sync-spin');
     }
 
@@ -188,93 +188,16 @@ class GoogleDriveSync {
       const fileId = await this.findOrCreateDriveFile();
       if (!fileId) throw new Error('無法存取 Google 雲端硬碟檔案');
 
-      // 1. 從 Google Drive 讀取雲端內容
-      let cloudData = null;
-      try {
-        const downloadRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&_t=${Date.now()}`, {
-          headers: { Authorization: `Bearer ${this.accessToken}` }
-        });
-        if (downloadRes.ok) {
-          const text = await downloadRes.text();
-          if (text && text.trim().length > 0) {
-            cloudData = JSON.parse(text);
-          }
-        }
-      } catch (e) {
-        console.warn('下載 Google Drive 檔案失敗:', e);
-      }
-
-      // 2. 取得本機 IndexedDB 資料與刪除墓碑 (tombstones)
-      const localNotes = await state.db.getAllNotes();
-      const localCategories = await state.db.getCategories();
-      let localDeletedIds = new Set(JSON.parse(localStorage.getItem('gdrive_deleted_ids') || '[]'));
-      let stateChanged = false;
-
-      // 3. 雙向合併 (Merge)
-      if (cloudData && Array.isArray(cloudData.notes)) {
-        const cloudNotes = cloudData.notes;
-        const cloudDeletedIds = new Set(Array.isArray(cloudData.deletedNoteIds) ? cloudData.deletedNoteIds : []);
-
-        // 合併雙方的刪除清單
-        const mergedDeletedIds = new Set([...localDeletedIds, ...cloudDeletedIds]);
-
-        // A. 處理刪除：如果在合併後的刪除清單中，本機必須刪除
-        for (let ln of localNotes) {
-          if (mergedDeletedIds.has(ln.id)) {
-            await state.db.deleteNote(ln.id);
-            stateChanged = true;
-          }
-        }
-
-        // B. 處理新增與更新：排除已刪除的記事
-        for (let cn of cloudNotes) {
-          if (mergedDeletedIds.has(cn.id)) continue;
-
-          const lm = localNotes.find(ln => ln.id === cn.id);
-          const cnTime = new Date(cn.updatedAt || 0).getTime();
-          const lmTime = lm ? new Date(lm.updatedAt || 0).getTime() : 0;
-          const cnCommentsLen = (cn.comments || []).length;
-          const lmCommentsLen = (lm && lm.comments) ? lm.comments.length : 0;
-
-          if (!lm || cnTime > lmTime || cnCommentsLen > lmCommentsLen) {
-            await state.db.saveNote(cn);
-            stateChanged = true;
-          }
-        }
-
-        // 分類同步：以最新的 categories 為準 (若雲端比本地新，或本地比雲端新，不再做 Union Set 聯集，避免被更名或刪除的舊分類復活)
-        const cloudCats = cloudData.categories || [];
-        const cloudCatsTime = cloudData.exportedAt ? new Date(cloudData.exportedAt).getTime() : 0;
-        const localCatsTime = parseInt(localStorage.getItem('cats_updated_at') || '0', 10);
-
-        if (cloudCats.length > 0 && cloudCatsTime > localCatsTime) {
-          // 雲端較新，使用雲端分類
-          await state.db.saveCategories(cloudCats);
-          state.categories = cloudCats;
-          localStorage.setItem('cats_updated_at', cloudCatsTime.toString());
-          stateChanged = true;
-        }
-      }
-
-      // 4. 清理無效分類：如果分類裡已經沒有任何記事，且該分類是被更名前遺留的舊分類，自動清理
-      const currentNotesForCats = await state.db.getAllNotes();
-      const usedCats = new Set(currentNotesForCats.map(n => n.category).filter(Boolean));
-      // 保持使用者現有分類，但清除問號或空值
-      let finalCategories = (await state.db.getCategories()).filter(c => c && !c.includes('?'));
-
-      // 合併完後，取得本地最新完整資料並將雲端同步更新上去 (排除已刪除)
-      const allCurrentNotes = await state.db.getAllNotes();
-      const finalNotes = allCurrentNotes.filter(n => !localDeletedIds.has(n.id));
+      const allNotes = await state.db.getAllNotes();
+      const allCategories = await state.db.getCategories();
 
       const payload = {
         version: '1.2.0',
         exportedAt: new Date().toISOString(),
-        categories: finalCategories,
-        deletedNoteIds: Array.from(localDeletedIds),
-        notes: finalNotes
+        categories: allCategories,
+        notes: allNotes
       };
 
-      // 上傳更新至 Google Drive
       const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
         method: 'PATCH',
         headers: {
@@ -288,45 +211,124 @@ class GoogleDriveSync {
         throw new Error(`上傳更新至 Drive 失敗: ${uploadRes.statusText}`);
       }
 
-      if (stateChanged) {
-        state.notes = finalNotes;
-        renderCategories();
-        renderNotesList();
-        if (state.selectedNoteId) {
-          const current = state.notes.find(n => n.id === state.selectedNoteId);
-          if (current) {
-            selectNote(current.id);
-          } else {
-            selectNote(null);
-            closeMobileDetailView();
-          }
-        }
-      }
-
       this.lastSyncTime = Date.now();
-      this.updateStatusBadge('online', '已與 Google Drive 同步');
-      if (!isSilent) {
-        showToast('Google Drive 雲端同步完成！', 'success');
-      }
+      this.updateStatusBadge('online', '已成功備份至雲端');
+      showToast(`已成功將 ${allNotes.length} 則記事完整備份至 Google Drive！`, 'success');
 
     } catch (err) {
-      console.error('Google Drive 同步過程發生錯誤:', err);
+      console.error('Google Drive 備份失敗:', err);
       if (err.message && err.message.includes('401')) {
         this.signOut();
       } else {
-        this.updateStatusBadge('offline', 'Google Drive 同步失敗');
-        if (!isSilent) {
-          showToast('Google Drive 同步失敗，請檢查網路連線', 'error');
-        }
+        this.updateStatusBadge('offline', '備份失敗');
+        showToast('備份失敗，請檢查網路連線', 'error');
       }
     } finally {
       this.isSyncing = false;
-      const btnManual = document.getElementById('btn-manual-sync');
-      if (btnManual) {
-        const icon = btnManual.querySelector('.material-symbols-rounded');
+      if (btnUpload) {
+        const icon = btnUpload.querySelector('.material-symbols-rounded');
         if (icon) icon.classList.remove('sync-spin');
       }
     }
+  }
+
+  /**
+   * 2. 從雲端還原 (下載)：從 Google 雲端硬碟下載最新的備份，並完全覆蓋本機記事
+   */
+  async restoreFromCloud() {
+    if (!this.isLoggedIn()) {
+      this.signIn();
+      return;
+    }
+
+    if (this.isSyncing) return;
+
+    if (!confirm('確定要從 Google Drive 下載並還原嗎？\n這將會以雲端上的最新檔案覆蓋目前本機的記事資料。')) {
+      return;
+    }
+
+    this.isSyncing = true;
+    this.updateStatusBadge('syncing', '正在從雲端下載還原...');
+
+    const btnDownload = document.getElementById('btn-top-cloud-download');
+    if (btnDownload) {
+      const icon = btnDownload.querySelector('.material-symbols-rounded');
+      if (icon) icon.classList.add('sync-spin');
+    }
+
+    try {
+      const fileId = await this.findOrCreateDriveFile();
+      if (!fileId) throw new Error('無法找到 Google 雲端硬碟檔案');
+
+      const downloadRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&_t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${this.accessToken}` }
+      });
+
+      if (!downloadRes.ok) {
+        throw new Error(`下載 Google Drive 檔案失敗: ${downloadRes.statusText}`);
+      }
+
+      const text = await downloadRes.text();
+      if (!text || text.trim().length === 0) {
+        throw new Error('雲端上的備份檔案為空！');
+      }
+
+      const cloudData = JSON.parse(text);
+      if (!cloudData || !Array.isArray(cloudData.notes)) {
+        throw new Error('雲端資料格式不符');
+      }
+
+      // 1. 清空本機現有筆記並全面寫入雲端筆記
+      const currentLocal = await state.db.getAllNotes();
+      for (let ln of currentLocal) {
+        await state.db.deleteNote(ln.id);
+      }
+      for (let cn of cloudData.notes) {
+        await state.db.saveNote(cn);
+      }
+
+      // 2. 還原分類
+      if (cloudData.categories && Array.isArray(cloudData.categories)) {
+        await state.db.saveCategories(cloudData.categories);
+        state.categories = cloudData.categories;
+      }
+
+      // 3. 重繪畫面
+      state.notes = await state.db.getAllNotes();
+      renderCategories();
+      renderNotesList();
+
+      if (state.notes.length > 0) {
+        selectNote(state.notes[0].id);
+      } else {
+        selectNote(null);
+        closeMobileDetailView();
+      }
+
+      this.lastSyncTime = Date.now();
+      this.updateStatusBadge('online', '已從雲端還原');
+      showToast(`還原成功！已完整還原 ${cloudData.notes.length} 則記事`, 'success');
+
+    } catch (err) {
+      console.error('從 Google Drive 還原失敗:', err);
+      if (err.message && err.message.includes('401')) {
+        this.signOut();
+      } else {
+        this.updateStatusBadge('offline', '還原失敗');
+        showToast('還原失敗: ' + err.message, 'error');
+      }
+    } finally {
+      this.isSyncing = false;
+      if (btnDownload) {
+        const icon = btnDownload.querySelector('.material-symbols-rounded');
+        if (icon) icon.classList.remove('sync-spin');
+      }
+    }
+  }
+
+  // 保留相容函式
+  async syncNow() {
+    await this.backupToCloud();
   }
 
   updateStatusBadge(status, text) {
@@ -335,7 +337,7 @@ class GoogleDriveSync {
 
     if (status === 'online') {
       badge.innerHTML = `<span class="sync-dot online"></span><span style="font-weight: 600; color: #15803d;">${text}</span>`;
-      badge.title = `最後同步時間: ${new Date().toLocaleTimeString()} (檔案保存在您的 Google 雲端硬碟)`;
+      badge.title = `最後操作時間: ${new Date().toLocaleTimeString()} (檔案保存在您的 Google 雲端硬碟)`;
     } else if (status === 'syncing') {
       badge.innerHTML = `<span class="sync-dot syncing"></span><span style="color: #b45309;">${text}</span>`;
     } else {
@@ -345,11 +347,13 @@ class GoogleDriveSync {
 
   updateUI() {
     const btnSignIn = document.getElementById('btn-gdrive-login');
-    const btnSyncNow = document.getElementById('btn-gdrive-sync');
+    const actionsGroup = document.getElementById('gdrive-actions-group');
     const badge = document.getElementById('gdrive-sync-badge');
     const userLabel = document.getElementById('gdrive-user-label');
+    const topUpload = document.getElementById('btn-top-cloud-upload');
+    const topDownload = document.getElementById('btn-top-cloud-download');
 
-    if (!btnSignIn || !btnSyncNow) return;
+    if (!btnSignIn) return;
 
     if (this.isLoggedIn()) {
       btnSignIn.innerHTML = '<span class="material-symbols-rounded">logout</span><span>登出 Google</span>';
@@ -357,22 +361,26 @@ class GoogleDriveSync {
       btnSignIn.classList.remove('btn-gdrive-connect');
       btnSignIn.classList.add('btn-gdrive-disconnect');
 
-      btnSyncNow.style.display = 'flex';
+      if (actionsGroup) actionsGroup.style.display = 'flex';
       if (badge) badge.style.display = 'flex';
       if (userLabel) {
         userLabel.style.display = 'block';
         userLabel.textContent = this.userEmail ? `帳號: ${this.userEmail}` : 'Google 雲端已連結';
       }
+      if (topUpload) topUpload.style.display = 'inline-flex';
+      if (topDownload) topDownload.style.display = 'inline-flex';
       this.updateStatusBadge('online', '已連結 Google Drive');
     } else {
-      btnSignIn.innerHTML = '<span class="material-symbols-rounded">cloud_sync</span><span>連結 Google Drive 自動同步</span>';
-      btnSignIn.title = '登入 Google 帳號，達成手機與電腦全自動無縫雲端同步';
+      btnSignIn.innerHTML = '<span class="material-symbols-rounded">cloud_sync</span><span>連結 Google Drive</span>';
+      btnSignIn.title = '登入 Google 帳號，達成手機與電腦隨時備份與還原';
       btnSignIn.classList.add('btn-gdrive-connect');
       btnSignIn.classList.remove('btn-gdrive-disconnect');
 
-      btnSyncNow.style.display = 'none';
+      if (actionsGroup) actionsGroup.style.display = 'none';
       if (badge) badge.style.display = 'none';
       if (userLabel) userLabel.style.display = 'none';
+      if (topUpload) topUpload.style.display = 'none';
+      if (topDownload) topDownload.style.display = 'none';
     }
   }
 }
