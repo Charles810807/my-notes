@@ -1509,7 +1509,6 @@ function initEventListeners() {
 
   // Google Drive 同步按鈕事件
   const btnGDriveLogin = document.getElementById('btn-gdrive-login');
-  const btnGDriveSync = document.getElementById('btn-gdrive-sync');
   if (btnGDriveLogin) {
     btnGDriveLogin.addEventListener('click', () => {
       if (window.gDriveSync) {
@@ -1522,6 +1521,8 @@ function initEventListeners() {
         }
       }
     });
+  }
+
   // 側邊欄「備份到雲端」按鈕
   const btnGDriveBackup = document.getElementById('btn-gdrive-backup');
   if (btnGDriveBackup) {
