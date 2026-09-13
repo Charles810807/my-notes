@@ -249,12 +249,6 @@ class GoogleDriveSync {
 
     if (this.isSyncing) return;
 
-    if (!isSilent) {
-      if (!confirm('確定要從 Google Drive 下載並還原嗎？\n這將會以雲端上的最新檔案覆蓋目前本機的記事資料。')) {
-        return;
-      }
-    }
-
     this.isSyncing = true;
     this.updateStatusBadge('syncing', '正在從雲端下載還原...');
 

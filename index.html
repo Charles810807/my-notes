@@ -67,9 +67,6 @@
       <div class="sidebar-footer">
         <!-- Google Drive 雲端備份與還原區塊 (獨立分開) -->
         <div id="gdrive-section" class="gdrive-sync-section" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border-color);">
-          <div id="gdrive-sync-badge" class="sync-status-badge" style="display: none; margin-bottom: 6px;">
-            <span class="sync-dot offline"></span><span>Google Drive 未連結</span>
-          </div>
           <div id="gdrive-user-label" style="display: none; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; word-break: break-all; padding: 0 4px;"></div>
           
           <button id="btn-gdrive-login" class="btn btn-text btn-gdrive-connect" title="連結 Google Drive 帳號">
@@ -102,6 +99,11 @@
           <span>還原匯入</span>
         </button>
         <input type="file" id="file-import" accept=".json" style="display: none;">
+
+        <!-- 狀態列移至最底端 -->
+        <div id="gdrive-sync-badge" class="sync-status-badge" style="display: none; margin-top: 8px; margin-bottom: 0;">
+          <span class="sync-dot offline"></span><span>Google Drive 未連結</span>
+        </div>
       </div>
     </aside>
 
@@ -121,13 +123,7 @@
             <span id="filtered-count" class="badge">0 則</span>
           </div>
         </div>
-        <div class="list-actions" style="display: flex; align-items: center; gap: 6px;">
-          <button id="btn-top-cloud-upload" class="icon-btn" title="上傳備份到雲端 (Google Drive)" style="color: #2563eb; background: #eff6ff; border-radius: var(--radius-sm); padding: 4px 6px;">
-            <span class="material-symbols-rounded" style="font-size: 20px;">cloud_upload</span>
-          </button>
-          <button id="btn-top-cloud-download" class="icon-btn" title="從雲端下載還原 (Google Drive)" style="color: #16a34a; background: #f0fdf4; border-radius: var(--radius-sm); padding: 4px 6px;">
-            <span class="material-symbols-rounded" style="font-size: 20px;">cloud_download</span>
-          </button>
+        <div class="list-actions">
           <select id="sort-select" class="select-dropdown">
             <option value="updated-desc">更新時間 (新到舊)</option>
             <option value="updated-asc">更新時間 (舊到新)</option>
