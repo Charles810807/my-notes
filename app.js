@@ -1490,7 +1490,17 @@ function initEventListeners() {
 
   // 手機連線視窗事件
   function openMobileModal() {
-    const mobileUrl = currentMobileUrl || `http://${window.location.hostname || '127.0.0.1'}:8766/index.html`;
+    let mobileUrl = '';
+    const isLocalHost = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost' || !window.location.hostname;
+    
+    if (!isLocalHost && !window.location.port) {
+      // 部署在 GitHub Pages 或其他雲端靜態平台，直接使用當前完整網址 (包含路徑，絕不加 :8766)
+      mobileUrl = window.location.href.split('#')[0];
+    } else {
+      // 本地電腦伺服器環境
+      mobileUrl = currentMobileUrl || `http://${window.location.hostname || '127.0.0.1'}:8766/index.html`;
+    }
+
     dom.mobileUrlInput.value = mobileUrl;
     dom.qrcodeContainer.innerHTML = '';
     if (window.QRCode) {
