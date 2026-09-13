@@ -36,6 +36,13 @@ async function checkSyncServer() {
 
 
 function updateSyncStatusUI(online) {
+  // 若非 localhost 本地環境 (如 GitHub Pages)，完全不需要顯示本地 Access MDB 狀態列
+  if (!isLocalhost) {
+    const existing = document.getElementById('sync-status-indicator');
+    if (existing) existing.remove();
+    return;
+  }
+
   let indicator = document.getElementById('sync-status-indicator');
   if (!indicator) {
     indicator = document.createElement('div');
@@ -486,7 +493,8 @@ function getFilteredNotes() {
       const matchContent = (n.content || '').toLowerCase().includes(q);
       const matchTags = (n.tags || []).some(t => t.toLowerCase().includes(q));
       const matchCat = (n.category || '').toLowerCase().includes(q);
-      return matchTitle || matchContent || matchTags || matchCat;
+      const matchComments = (n.comments || []).some(c => (c.content || '').toLowerCase().includes(q));
+      return matchTitle || matchContent || matchTags || matchCat || matchComments;
     });
   }
 
