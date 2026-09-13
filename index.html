@@ -244,9 +244,14 @@
     <div class="lightbox-backdrop"></div>
     <div class="lightbox-content">
       <img id="lightbox-img" src="" alt="放大圖片">
-      <button id="lightbox-close" class="lightbox-btn close-btn" title="關閉 (Esc)">
-        <span class="material-symbols-rounded">close</span>
-      </button>
+      <div class="lightbox-actions" style="position: absolute; top: -50px; right: 0; display: flex; gap: 8px;">
+        <button id="lightbox-download" class="lightbox-btn" title="下載此張照片" style="position: static;">
+          <span class="material-symbols-rounded">download</span>
+        </button>
+        <button id="lightbox-close" class="lightbox-btn close-btn" title="關閉 (Esc)" style="position: static;">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
       <button id="lightbox-prev" class="lightbox-btn nav-btn prev" title="上一張">
         <span class="material-symbols-rounded">arrow_back_ios_new</span>
       </button>
@@ -341,9 +346,10 @@
   <!-- 提示訊息 Toast -->
   <div id="toast" class="toast hidden"></div>
 
-  <!-- Google Identity Services -->
+  <!-- Google Identity Services & 第三方函式庫 -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="gdrive_sync.js"></script>
   <script src="app.js"></script>
 </body>

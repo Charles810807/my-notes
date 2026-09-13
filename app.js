@@ -310,6 +310,7 @@ const dom = {
   lightboxModal: document.getElementById('lightbox-modal'),
   lightboxImg: document.getElementById('lightbox-img'),
   lightboxClose: document.getElementById('lightbox-close'),
+  lightboxDownload: document.getElementById('lightbox-download'),
   lightboxPrev: document.getElementById('lightbox-prev'),
   lightboxNext: document.getElementById('lightbox-next'),
   lightboxCounter: document.getElementById('lightbox-counter'),
@@ -932,9 +933,15 @@ function selectNote(noteId) {
 
     galleryHtml = `
       <div class="detail-gallery">
-        <div class="gallery-title">
-          <span class="material-symbols-rounded">photo_library</span>
-          <span>附加照片 (${note.images.length} 張) - 點擊放大</span>
+        <div class="gallery-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="material-symbols-rounded">photo_library</span>
+            <span>附加照片 (${note.images.length} 張) - 點擊放大</span>
+          </div>
+          <button type="button" id="btn-download-all-images" class="btn btn-secondary btn-sm" title="一鍵打包下載此記事所有照片 (ZIP)">
+            <span class="material-symbols-rounded" style="font-size: 16px;">download</span>
+            <span>一鍵下載所有照片 (ZIP)</span>
+          </button>
         </div>
         <div class="gallery-grid">
           ${imgItems}
@@ -1004,6 +1011,14 @@ function selectNote(noteId) {
   document.getElementById('btn-edit-current').addEventListener('click', () => openEditor(note));
   document.getElementById('btn-delete-current').addEventListener('click', () => confirmDeleteNote(note.id));
   document.getElementById('btn-toggle-pin').addEventListener('click', () => togglePinNote(note.id));
+
+  const btnDownloadAll = document.getElementById('btn-download-all-images');
+  if (btnDownloadAll) {
+    btnDownloadAll.addEventListener('click', (e) => {
+      e.stopPropagation();
+      downloadAllImagesAsZip(note);
+    });
+  }
 
   const galleryItems = dom.noteViewPane.querySelectorAll('.gallery-item');
   galleryItems.forEach(item => {
@@ -1347,7 +1362,120 @@ function nextLightbox() {
   updateLightboxView();
 }
 
-// --- 7. 資料匯出與還原 (備份) ---
+function downloadCurrentLightboxImage() {
+  const current = state.currentLightboxIndex;
+  const imgSrc = state.lightboxImages[current];
+  if (!imgSrc) return;
+
+  const a = document.createElement('a');
+  a.href = imgSrc;
+  const ext = imgSrc.includes('image/png') ? 'png' : (imgSrc.includes('image/webp') ? 'webp' : 'jpg');
+  a.download = `記事圖片_${Date.now()}_${current + 1}.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('照片已開始下載！');
+}
+
+// 一鍵打包下載該記事的所有照片 (ZIP 壓縮包)
+async function downloadAllImagesAsZip(note) {
+  if (!note) return;
+  const images = [];
+
+  // 主照片
+  if (note.images && note.images.length > 0) {
+    note.images.forEach((img, i) => images.push({ src: img, name: `主照片_${i + 1}` }));
+  }
+
+  // 追加補充記錄中的照片
+  if (note.comments && note.comments.length > 0) {
+    note.comments.forEach((c, cIdx) => {
+      if (c.images && c.images.length > 0) {
+        c.images.forEach((cImg, ci) => {
+          images.push({ src: cImg, name: `補充${cIdx + 1}_照片_${ci + 1}` });
+        });
+      }
+    });
+  }
+
+  if (images.length === 0) {
+    alert('這則記事中沒有任何照片可供下載！');
+    return;
+  }
+
+  showToast(`正在打包 ${images.length} 張照片，請稍候...`);
+
+  try {
+    if (!window.JSZip) {
+      // 若 JSZip 尚未載入，依序觸發單張下載
+      for (let item of images) {
+        const a = document.createElement('a');
+        a.href = item.src;
+        const ext = item.src.includes('image/png') ? 'png' : (item.src.includes('image/webp') ? 'webp' : 'jpg');
+        a.download = `${sanitizeFilename(note.title || '記事')}_${item.name}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        await new Promise(r => setTimeout(r, 200));
+      }
+      showToast('所有照片已逐張下載完成！');
+      return;
+    }
+
+    const zip = new JSZip();
+    const folder = zip.folder(sanitizeFilename(note.title || '記事照片'));
+
+    for (let i = 0; i < images.length; i++) {
+      const item = images[i];
+      let base64Data = '';
+      let ext = 'jpg';
+
+      if (item.src.startsWith('data:image/')) {
+        const parts = item.src.split(',');
+        base64Data = parts[1];
+        if (parts[0].includes('image/png')) ext = 'png';
+        else if (parts[0].includes('image/webp')) ext = 'webp';
+      } else {
+        // 若為相對路徑，抓取轉 base64
+        try {
+          const res = await fetch(item.src);
+          const blob = await res.blob();
+          base64Data = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.readAsDataURL(blob);
+          });
+          if (item.src.endsWith('.png')) ext = 'png';
+        } catch (e) {
+          console.warn('讀取圖片失敗:', item.src);
+        }
+      }
+
+      if (base64Data) {
+        folder.file(`${item.name}.${ext}`, base64Data, { base64: true });
+      }
+    }
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sanitizeFilename(note.title || '記事照片')}_共${images.length}張照片.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`成功打包下載 ${images.length} 張照片！`, 'success');
+
+  } catch (err) {
+    console.error('打包下載失敗:', err);
+    alert('打包下載照片失敗: ' + err.message);
+  }
+}
+
+function sanitizeFilename(name) {
+  return (name || '記事').replace(/[\\/:*?"<>|]/g, '_').trim();
+}
 async function urlToDataURL(url) {
   if (!url || typeof url !== 'string') return url;
   if (url.startsWith('data:image/')) return url;
@@ -1614,6 +1742,9 @@ function initEventListeners() {
   });
 
   dom.lightboxClose.addEventListener('click', closeLightbox);
+  if (dom.lightboxDownload) {
+    dom.lightboxDownload.addEventListener('click', downloadCurrentLightboxImage);
+  }
   dom.lightboxPrev.addEventListener('click', prevLightbox);
   dom.lightboxNext.addEventListener('click', nextLightbox);
   document.querySelector('.lightbox-backdrop').addEventListener('click', closeLightbox);
