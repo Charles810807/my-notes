@@ -1523,6 +1523,21 @@ async function generateLongImage(note) {
   renderDiv.style.padding = '40px';
   renderDiv.style.boxSizing = 'border-box';
 
+  const loadingTitle = document.getElementById('export-loading-title');
+  const loadingDetail = document.getElementById('export-loading-detail');
+  const progressBar = document.getElementById('export-progress-bar');
+  const progressPercent = document.getElementById('export-progress-percent');
+
+  function updateExportProgress(percent, title, detail) {
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (progressPercent) progressPercent.textContent = `${percent}%`;
+    if (title && loadingTitle) loadingTitle.textContent = title;
+    if (detail && loadingDetail) loadingDetail.textContent = detail;
+  }
+
+  updateExportProgress(15, '正在排版教學卡片...', '解析文字與標籤排版 (15%)');
+  await new Promise(r => setTimeout(r, 80));
+
   // 1. 標頭
   const categoryText = note.category || '生活記事';
   const tagsText = (note.tags || []).map(t => `#${t}`).join('  ');
@@ -1531,6 +1546,9 @@ async function generateLongImage(note) {
   // 2. 附加照片
   let imagesHtml = '';
   if (note.images && note.images.length > 0) {
+    updateExportProgress(35, '正在載入附加照片...', `處理附圖 1~${note.images.length} 張 (35%)`);
+    await new Promise(r => setTimeout(r, 80));
+
     const imgCards = note.images.map((src, i) => `
       <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; margin-bottom: 20px;">
         <img src="${src}" style="width:100%; height:auto; display:block;" />
@@ -1553,6 +1571,9 @@ async function generateLongImage(note) {
   // 3. 追加補充記錄
   let commentsHtml = '';
   if (note.comments && note.comments.length > 0) {
+    updateExportProgress(50, '正在整理補充紀錄...', `整理 ${note.comments.length} 則時間軸補充 (50%)`);
+    await new Promise(r => setTimeout(r, 80));
+
     const cItems = note.comments.map((c, idx) => {
       let cImgHtml = '';
       if (c.images && c.images.length > 0) {
@@ -1612,6 +1633,9 @@ async function generateLongImage(note) {
   document.body.appendChild(renderDiv);
 
   try {
+    updateExportProgress(70, '正在高畫質渲染圖像...', '產生 Retina 2x 高解析度點陣圖 (70%)');
+    await new Promise(r => setTimeout(r, 60));
+
     // 渲染為 2x 高解析度 Canvas
     const canvas = await html2canvas(renderDiv, {
       scale: 2,
@@ -1620,10 +1644,17 @@ async function generateLongImage(note) {
       backgroundColor: '#ffffff'
     });
 
+    updateExportProgress(95, '正在生成圖像檔案...', '輸出 PNG 影像資料 (95%)');
+    await new Promise(r => setTimeout(r, 60));
+
     const dataUrl = canvas.toDataURL('image/png');
     previewImg.src = dataUrl;
-    loading.style.display = 'none';
-    previewContainer.classList.remove('hidden');
+    updateExportProgress(100, '長圖合成完成！', '長圖已準備完畢 (100%)');
+
+    setTimeout(() => {
+      loading.style.display = 'none';
+      previewContainer.classList.remove('hidden');
+    }, 200);
 
     // 下載按鈕事件
     const btnDownload = document.getElementById('btn-download-export-image');
