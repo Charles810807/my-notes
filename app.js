@@ -1511,16 +1511,21 @@ async function generateLongImage(note) {
   loading.style.display = 'block';
   previewContainer.classList.add('hidden');
 
-  // 建立隱藏的渲染容器 (寬度 800px，SOP 精緻排版)
+  // 建立渲染容器 (寬度 800px，SOP 精緻排版)
+  // 注意：在手機 iOS Safari/Android 上，left: -9999px 會導致繪製被瀏覽器略過或崩潰
+  // 使用 fixed + z-index: -9999 + opacity: 0 確保 DOM 樹佈局正確且使用者不可見
   const renderDiv = document.createElement('div');
   renderDiv.style.position = 'fixed';
-  renderDiv.style.left = '-9999px';
+  renderDiv.style.left = '0';
   renderDiv.style.top = '0';
-  renderDiv.style.width = '800px';
+  renderDiv.style.width = '760px';
+  renderDiv.style.opacity = '0';
+  renderDiv.style.pointerEvents = 'none';
+  renderDiv.style.zIndex = '-9999';
   renderDiv.style.backgroundColor = '#ffffff';
   renderDiv.style.fontFamily = "'Noto Sans TC', sans-serif";
   renderDiv.style.color = '#1e293b';
-  renderDiv.style.padding = '40px';
+  renderDiv.style.padding = '36px';
   renderDiv.style.boxSizing = 'border-box';
 
   const loadingTitle = document.getElementById('export-loading-title');
@@ -1551,7 +1556,7 @@ async function generateLongImage(note) {
 
     const imgCards = note.images.map((src, i) => `
       <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; margin-bottom: 20px;">
-        <img src="${src}" style="width:100%; height:auto; display:block;" />
+        <img src="${src}" crossorigin="anonymous" style="width:100%; height:auto; display:block;" />
         <div style="font-size:13px; color:#64748b; padding:8px 0; font-weight:600;">附圖 ${i + 1}</div>
       </div>
     `).join('');
@@ -1581,7 +1586,7 @@ async function generateLongImage(note) {
           <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
             ${c.images.map((img, cImgIdx) => `
               <div style="background:#ffffff; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
-                <img src="${img}" style="width:100%; height:auto; display:block;" />
+                <img src="${img}" crossorigin="anonymous" style="width:100%; height:auto; display:block;" />
                 <div style="font-size:12px; color:#64748b; padding:6px 0; text-align:center; font-weight:600;">補充附圖 ${cImgIdx + 1}</div>
               </div>
             `).join('')}
@@ -1613,11 +1618,11 @@ async function generateLongImage(note) {
         <span style="background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">${escapeHtml(categoryText)}</span>
         <span style="font-size: 13px; color: #6366f1; font-weight: 600;">${escapeHtml(tagsText)}</span>
       </div>
-      <h1 style="font-size: 28px; font-weight: 800; color: #0f172a; margin: 8px 0; line-height: 1.3;">${escapeHtml(note.title || '未命名記事')}</h1>
+      <h1 style="font-size: 26px; font-weight: 800; color: #0f172a; margin: 8px 0; line-height: 1.35;">${escapeHtml(note.title || '未命名記事')}</h1>
       <div style="font-size: 13px; color: #94a3b8; font-weight: 500;">${timeText}</div>
     </div>
 
-    <div style="margin-top: 24px; font-size: 16px; line-height: 1.8; color: #334155; white-space: pre-wrap; word-break: break-word;">
+    <div style="margin-top: 24px; font-size: 15px; line-height: 1.8; color: #334155; white-space: pre-wrap; word-break: break-word;">
       ${escapeHtml(note.content || '（本記事無詳細內文）')}
     </div>
 
@@ -1633,16 +1638,33 @@ async function generateLongImage(note) {
   document.body.appendChild(renderDiv);
 
   try {
-    updateExportProgress(70, '正在高畫質渲染圖像...', '產生 Retina 2x 高解析度點陣圖 (70%)');
-    await new Promise(r => setTimeout(r, 60));
+    // 檢查是否為行動裝置（手機 Canvas 像素限制通常為 4096px 或 16MP，過大會導致瀏覽器 crash/卡住）
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    const targetScale = isMobile ? 1.2 : 2;
 
-    // 渲染為 2x 高解析度 Canvas
-    const canvas = await html2canvas(renderDiv, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff'
-    });
+    updateExportProgress(70, '正在高畫質渲染圖像...', `產生點陣圖檔 (70%)`);
+    await new Promise(r => setTimeout(r, 100));
+
+    // 渲染 Canvas (若失敗則降級為 scale: 1 保障手機 100% 成功)
+    let canvas;
+    try {
+      canvas = await html2canvas(renderDiv, {
+        scale: targetScale,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+    } catch (renderErr) {
+      console.warn('初次渲染遇到限制，自動降為標準比例重試:', renderErr);
+      canvas = await html2canvas(renderDiv, {
+        scale: 1,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+    }
 
     updateExportProgress(95, '正在生成圖像檔案...', '輸出 PNG 影像資料 (95%)');
     await new Promise(r => setTimeout(r, 60));

@@ -398,7 +398,7 @@ body {
 .card-excerpt {
   font-size: 0.84rem;
   color: var(--text-secondary);
-  line-height: 1.45;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -406,6 +406,7 @@ body {
   margin-bottom: 8px;
   white-space: pre-line;
   word-break: break-word;
+  padding-bottom: 3px;
 }
 
 /* 縮圖網格 (最多縮圖預覽) */
@@ -1803,7 +1804,9 @@ body {
 
   .card-excerpt {
     font-size: 0.88rem !important;
-    line-height: 1.5 !important;
+    line-height: 1.55 !important;
     margin-bottom: 10px !important;
+    padding-bottom: 4px !important;
+    overflow: hidden;
   }
 }
