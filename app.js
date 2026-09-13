@@ -1511,19 +1511,15 @@ async function generateLongImage(note) {
   loading.style.display = 'block';
   previewContainer.classList.add('hidden');
 
-  // 建立渲染容器 (寬度 800px，SOP 精緻排版)
-  // 注意：在手機 iOS Safari/Android 上，left: -9999px 會導致繪製被瀏覽器略過或崩潰
-  // 使用 fixed + z-index: -9999 + opacity: 0 確保 DOM 樹佈局正確且使用者不可見
+  // 建立渲染容器 (放置在螢幕最下方視窗外或底層，絕不能設 opacity: 0 或 display: none，否則 html2canvas 會繪出全白)
   const renderDiv = document.createElement('div');
-  renderDiv.style.position = 'fixed';
-  renderDiv.style.left = '0';
-  renderDiv.style.top = '0';
-  renderDiv.style.width = '760px';
-  renderDiv.style.opacity = '0';
-  renderDiv.style.pointerEvents = 'none';
-  renderDiv.style.zIndex = '-9999';
+  renderDiv.style.position = 'absolute';
+  renderDiv.style.left = '0px';
+  renderDiv.style.top = `${document.documentElement.scrollHeight + 500}px`;
+  renderDiv.style.width = '750px';
+  renderDiv.style.zIndex = '-99999';
   renderDiv.style.backgroundColor = '#ffffff';
-  renderDiv.style.fontFamily = "'Noto Sans TC', sans-serif";
+  renderDiv.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Noto Sans TC', sans-serif";
   renderDiv.style.color = '#1e293b';
   renderDiv.style.padding = '36px';
   renderDiv.style.boxSizing = 'border-box';
@@ -1638,32 +1634,32 @@ async function generateLongImage(note) {
   document.body.appendChild(renderDiv);
 
   try {
-    // 檢查是否為行動裝置（手機 Canvas 像素限制通常為 4096px 或 16MP，過大會導致瀏覽器 crash/卡住）
+    // 檢查是否為行動裝置
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
     const targetScale = isMobile ? 1.2 : 2;
 
     updateExportProgress(70, '正在高畫質渲染圖像...', `產生點陣圖檔 (70%)`);
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 120));
 
-    // 渲染 Canvas (若失敗則降級為 scale: 1 保障手機 100% 成功)
+    // 渲染 Canvas：顯式指定 scrollX/Y 與視窗寬度，避免手機版 viewport 偏移造成空白
+    const canvasOptions = {
+      scale: targetScale,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 800,
+      logging: false
+    };
+
     let canvas;
     try {
-      canvas = await html2canvas(renderDiv, {
-        scale: targetScale,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
+      canvas = await html2canvas(renderDiv, canvasOptions);
     } catch (renderErr) {
       console.warn('初次渲染遇到限制，自動降為標準比例重試:', renderErr);
-      canvas = await html2canvas(renderDiv, {
-        scale: 1,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
+      canvasOptions.scale = 1;
+      canvas = await html2canvas(renderDiv, canvasOptions);
     }
 
     updateExportProgress(95, '正在生成圖像檔案...', '輸出 PNG 影像資料 (95%)');

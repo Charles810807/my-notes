@@ -1,0 +1,11 @@
+﻿__pycache__/
+*.log
+*.txt
+data/
+*.lnk
+*.bat
+*.vbs
+run_app.*
+launcher.py
+server.py
+sync_to_mdb.py
