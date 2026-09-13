@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>個人圖文記事本 - LINE 記事本替代方案</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- 左側側邊欄 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-header-top" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+          <div class="app-brand" style="margin-bottom: 0;">
+            <span class="material-symbols-rounded brand-icon">auto_stories</span>
+            <div class="brand-text">
+              <h2>我的記事本</h2>
+              <span class="subtext">個人圖文典藏</span>
+            </div>
+          </div>
+          <button id="btn-close-sidebar" class="icon-btn mobile-only-btn" title="關閉選單">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+        <button id="btn-new-note" class="btn btn-primary btn-block">
+
+          <span class="material-symbols-rounded">edit_note</span>
+          <span>新增記事</span>
+        </button>
+      </div>
+
+      <!-- 搜尋列 -->
+      <div class="search-box">
+        <span class="material-symbols-rounded search-icon">search</span>
+        <input type="text" id="search-input" placeholder="搜尋標題、內文或標籤...">
+        <button id="btn-clear-search" class="icon-btn hidden" title="清除搜尋">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+
+      <!-- 分類清單 -->
+      <div class="categories-section">
+        <div class="section-title">
+          <span>分類目錄</span>
+          <button id="btn-add-category" class="icon-btn-sm" title="新增分類">
+            <span class="material-symbols-rounded">add</span>
+          </button>
+        </div>
+        <ul id="category-list" class="category-list">
+          <li class="category-item active" data-category="all">
+            <span class="material-symbols-rounded">collections_bookmark</span>
+            <span class="category-name">全部記事</span>
+            <span class="category-count" id="count-all">0</span>
+          </li>
+          <li class="category-item" data-category="pinned">
+            <span class="material-symbols-rounded">push_pin</span>
+            <span class="category-name">已置頂</span>
+            <span class="category-count" id="count-pinned">0</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- 側邊欄底部工具區 -->
+      <div class="sidebar-footer">
+        <button id="btn-mobile-connect" class="btn btn-text" style="color: var(--primary); font-weight: 600;" title="在手機上開啟記事本">
+          <span class="material-symbols-rounded">smartphone</span>
+          <span>手機網頁連線</span>
+        </button>
+        <button id="btn-export-data" class="btn btn-text" title="備份所有資料至電腦">
+          <span class="material-symbols-rounded">download</span>
+          <span>備份匯出</span>
+        </button>
+        <button id="btn-import-trigger" class="btn btn-text" title="從備份檔還原資料">
+          <span class="material-symbols-rounded">upload</span>
+          <span>還原匯入</span>
+        </button>
+        <input type="file" id="file-import" accept=".json" style="display: none;">
+      </div>
+    </aside>
+
+
+    <!-- 手機側邊欄遮罩 -->
+    <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
+
+    <!-- 中間記事清單區 -->
+    <section class="notes-list-section" id="notes-list-section">
+      <div class="list-header">
+        <div class="header-left-actions">
+          <button id="btn-mobile-menu" class="icon-btn mobile-only-btn" title="開啟選單">
+            <span class="material-symbols-rounded">menu</span>
+          </button>
+          <div class="current-filter-info">
+            <h3 id="current-view-title">全部記事</h3>
+            <span id="filtered-count" class="badge">0 則</span>
+          </div>
+        </div>
+        <div class="list-actions">
+          <select id="sort-select" class="select-dropdown">
+            <option value="updated-desc">更新時間 (新到舊)</option>
+            <option value="updated-asc">更新時間 (舊到新)</option>
+            <option value="created-desc">建立時間 (新到舊)</option>
+            <option value="created-asc">建立時間 (舊到新)</option>
+            <option value="title-asc">標題 (A-Z)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 記事卡片清單 -->
+      <div id="notes-grid" class="notes-grid">
+        <!-- 卡片由 JS 動態生成 -->
+      </div>
+
+      <!-- 空狀態提醒 -->
+      <div id="empty-state" class="empty-state hidden">
+        <span class="material-symbols-rounded empty-icon">note_alt</span>
+        <h4>目前沒有記事</h4>
+        <p>點擊「新增記事」開始記錄文字與照片，或嘗試其他搜尋條件。</p>
+      </div>
+
+      <!-- 手機專屬浮動新增按鈕 (FAB) -->
+      <button id="btn-mobile-fab" class="mobile-fab" title="新增記事">
+        <span class="material-symbols-rounded">add</span>
+      </button>
+    </section>
+
+    <!-- 右側檢視區 (Detail Pane) -->
+    <main id="note-view-pane" class="note-view-pane empty">
+      <div class="select-note-prompt">
+        <span class="material-symbols-rounded">description</span>
+        <h3>選擇一則記事檢視或點擊「新增記事」</h3>
+        <p>支援直接貼上截圖 (Ctrl+V)、多圖上傳、全文搜尋與本機離線保存</p>
+      </div>
+    </main>
+  </div>
+
+
+  <!-- 編輯/新增 Modal 視窗 -->
+  <div id="editor-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">新增記事</h3>
+        <div class="modal-header-actions">
+          <label class="pin-checkbox-label" title="置頂此篇記事">
+            <input type="checkbox" id="edit-pinned">
+            <span class="material-symbols-rounded pin-icon">push_pin</span>
+            <span>置頂</span>
+          </label>
+          <button id="btn-close-modal" class="icon-btn" title="關閉">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <!-- 標題 -->
+        <div class="form-group">
+          <input type="text" id="edit-title" class="form-input title-input" placeholder="記事標題 (可不填，自動取內文第一行)...">
+        </div>
+
+        <!-- 分類與標籤 -->
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="edit-category">分類目錄</label>
+            <div class="category-select-wrapper">
+              <select id="edit-category" class="form-input">
+                <option value="生活記事">生活記事</option>
+                <option value="重要記錄">重要記錄</option>
+                <option value="工作與學業">工作與學業</option>
+                <option value="隨手記">隨手記</option>
+              </select>
+              <button type="button" id="btn-quick-new-category" class="icon-btn-sm" title="自訂新分類">
+                <span class="material-symbols-rounded">add</span>
+              </button>
+            </div>
+          </div>
+          <div class="form-group flex-1">
+            <label for="edit-tags">標籤 (用逗點或空格分隔)</label>
+            <input type="text" id="edit-tags" class="form-input" placeholder="例如: 帳號, 食譜, 密碼">
+          </div>
+        </div>
+
+        <!-- 內文編輯框 -->
+        <div class="form-group">
+          <label for="edit-content">內文記錄 (支援直接 Ctrl+V 貼上剪貼簿截圖)</label>
+          <textarea id="edit-content" class="form-textarea" placeholder="在此輸入文字內容，或直接按下 Ctrl + V 貼上螢幕截圖與圖片..."></textarea>
+        </div>
+
+        <!-- 圖片上傳與預覽區 -->
+        <div class="form-group">
+          <div class="images-upload-header">
+            <label>附加圖片 (<span id="images-count">0</span> 張)</label>
+            <button type="button" id="btn-add-images" class="btn btn-secondary btn-sm">
+              <span class="material-symbols-rounded">add_photo_alternate</span>
+              <span>選擇圖片</span>
+            </button>
+            <input type="file" id="file-images-input" multiple accept="image/*" style="display: none;">
+          </div>
+          
+          <div id="drop-zone" class="drop-zone">
+            <div id="images-preview-grid" class="images-preview-grid"></div>
+            <div id="drop-prompt" class="drop-prompt">
+              <span class="material-symbols-rounded">cloud_upload</span>
+              <p>拖曳圖片到此處，或在上方編輯框直接 <b>Ctrl + V</b> 貼上截圖</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="footer-left">
+          <span id="edit-time-tip" class="text-muted"></span>
+        </div>
+        <div class="footer-right">
+          <button id="btn-cancel-edit" class="btn btn-secondary">取消</button>
+          <button id="btn-save-note" class="btn btn-primary">
+            <span class="material-symbols-rounded">check</span>
+            <span>儲存記事</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 大圖燈箱 (Lightbox) 檢視 -->
+  <div id="lightbox-modal" class="lightbox-modal hidden">
+    <div class="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      <img id="lightbox-img" src="" alt="放大圖片">
+      <button id="lightbox-close" class="lightbox-btn close-btn" title="關閉 (Esc)">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+      <button id="lightbox-prev" class="lightbox-btn nav-btn prev" title="上一張">
+        <span class="material-symbols-rounded">arrow_back_ios_new</span>
+      </button>
+      <button id="lightbox-next" class="lightbox-btn nav-btn next" title="下一張">
+        <span class="material-symbols-rounded">arrow_forward_ios</span>
+      </button>
+      <div class="lightbox-counter" id="lightbox-counter">1 / 1</div>
+    </div>
+  </div>
+
+  <!-- 編輯追加補充記錄 Modal 視窗 -->
+  <div id="edit-comment-modal" class="modal hidden">
+    <div class="modal-backdrop" id="edit-comment-backdrop"></div>
+    <div class="modal-content" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+          <span class="material-symbols-rounded" style="color: var(--primary);">edit_note</span>
+          <span>編輯追加補充記錄</span>
+        </h3>
+        <button id="btn-close-comment-modal" class="icon-btn" title="關閉">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div class="form-group">
+          <textarea id="edit-comment-textarea" class="comment-textarea" style="min-height: 160px; font-size: 0.95rem; line-height: 1.6;" placeholder="請輸入補充內容 (支援多行輸入)..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 16px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" id="btn-cancel-edit-comment" class="btn btn-secondary">取消</button>
+        <button type="button" id="btn-save-edit-comment" class="btn btn-primary">
+          <span class="material-symbols-rounded">check</span>
+          <span>儲存修改</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手機連線 QR Code Modal -->
+  <div id="mobile-modal" class="modal hidden">
+    <div class="modal-backdrop" id="mobile-modal-backdrop"></div>
+    <div class="modal-content" style="max-width: 440px; text-align: center;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+          <span class="material-symbols-rounded" style="color: var(--primary);">qr_code_scanner</span>
+          <span>手機網頁即時連線</span>
+        </h3>
+        <button id="btn-close-mobile-modal" class="icon-btn" title="關閉">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px 20px; display: flex; flex-direction: column; align-items: center;">
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+          只要手機與電腦連上<strong>同一個 Wi-Fi (區網)</strong>，<br>用手機相機掃描下方 QR Code 即可直接使用：
+        </p>
+        <div id="qrcode-container" style="padding: 12px; background: #ffffff; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); display: inline-block;"></div>
+        <div style="margin-top: 18px; width: 100%;">
+          <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 6px;">或手動在手機瀏覽器輸入網址：</div>
+          <div style="display: flex; gap: 8px; align-items: center; background: #f1f5f9; padding: 8px 12px; border-radius: 8px;">
+            <input type="text" id="mobile-url-input" readonly style="border: none; background: transparent; font-size: 0.95rem; font-weight: 600; color: var(--primary-dark); width: 100%; text-align: center; outline: none;">
+            <button id="btn-copy-mobile-url" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem; white-space: nowrap;">複製</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: center;">
+        <span style="font-size: 0.8rem; color: var(--text-muted);">提示：手機新增記事與圖片，電腦端會即時自動存檔入庫！</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示訊息 Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="data/sync_data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
