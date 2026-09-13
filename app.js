@@ -1524,9 +1524,9 @@ async function generateLongImage(note) {
   let imagesHtml = '';
   if (note.images && note.images.length > 0) {
     const imgCards = note.images.map((src, i) => `
-      <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center;">
-        <img src="${src}" style="width:100%; height:auto; display:block; object-fit:contain; max-height:450px;" />
-        <div style="font-size:12px; color:#64748b; padding:6px 0; font-weight:600;">附圖 ${i + 1}</div>
+      <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; margin-bottom: 20px;">
+        <img src="${src}" style="width:100%; height:auto; display:block;" />
+        <div style="font-size:13px; color:#64748b; padding:8px 0; font-weight:600;">附圖 ${i + 1}</div>
       </div>
     `).join('');
 
@@ -1535,7 +1535,7 @@ async function generateLongImage(note) {
         <div style="font-size:16px; font-weight:700; color:#334155; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
           <span>📷 附加照片紀錄 (${note.images.length} 張)</span>
         </div>
-        <div style="display:grid; grid-template-columns: ${note.images.length === 1 ? '1fr' : 'repeat(2, 1fr)'}; gap:16px;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
           ${imgCards}
         </div>
       </div>
@@ -1549,15 +1549,20 @@ async function generateLongImage(note) {
       let cImgHtml = '';
       if (c.images && c.images.length > 0) {
         cImgHtml = `
-          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;">
-            ${c.images.map(img => `<img src="${img}" style="width:100%; border-radius:6px; border:1px solid #e2e8f0;" />`).join('')}
+          <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
+            ${c.images.map((img, cImgIdx) => `
+              <div style="background:#ffffff; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
+                <img src="${img}" style="width:100%; height:auto; display:block;" />
+                <div style="font-size:12px; color:#64748b; padding:6px 0; text-align:center; font-weight:600;">補充附圖 ${cImgIdx + 1}</div>
+              </div>
+            `).join('')}
           </div>
         `;
       }
       return `
-        <div style="background:#f8fafc; border-left:4px solid #6366f1; border-radius:4px 8px 8px 4px; padding:14px 18px; margin-bottom:14px;">
-          <div style="font-size:12px; color:#64748b; font-weight:600; margin-bottom:6px;">⏱️ 補充紀錄 #${idx + 1} (${formatDate(c.createdAt)})</div>
-          <div style="font-size:15px; color:#1e293b; white-space:pre-wrap; line-height:1.6;">${escapeHtml(c.content || '')}</div>
+        <div style="background:#f8fafc; border-left:4px solid #6366f1; border-radius:4px 8px 8px 4px; padding:16px 20px; margin-bottom:16px;">
+          <div style="font-size:12px; color:#64748b; font-weight:600; margin-bottom:8px;">⏱️ 補充紀錄 #${idx + 1} (${formatDate(c.createdAt)})</div>
+          <div style="font-size:15px; color:#1e293b; white-space:pre-wrap; line-height:1.7;">${escapeHtml(c.content || '')}</div>
           ${cImgHtml}
         </div>
       `;
