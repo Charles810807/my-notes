@@ -383,11 +383,12 @@ body {
 }
 
 .card-title {
-  font-size: 0.98rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text-main);
-  margin-bottom: 5px;
-  line-height: 1.35;
+  margin-bottom: 6px;
+  line-height: 1.5;
+  padding-bottom: 3px;
   word-break: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -396,7 +397,7 @@ body {
 }
 
 .card-excerpt {
-  font-size: 0.84rem;
+  font-size: 0.86rem;
   color: var(--text-secondary);
   line-height: 1.5;
   display: -webkit-box;
@@ -406,7 +407,7 @@ body {
   margin-bottom: 8px;
   white-space: pre-line;
   word-break: break-word;
-  padding-bottom: 3px;
+  padding-bottom: 4px;
 }
 
 /* 縮圖網格 (最多縮圖預覽) */
@@ -1795,11 +1796,18 @@ body {
   .note-card {
     padding: 14px 16px !important;
     min-height: auto !important;
+    overflow: visible !important;
   }
 
   .card-title {
     font-size: 1.05rem !important;
+    line-height: 1.5 !important;
     margin-bottom: 6px !important;
+    padding-bottom: 4px !important;
+    display: block !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+    -webkit-box-orient: unset !important;
   }
 
   .card-excerpt {
@@ -1807,7 +1815,6 @@ body {
     line-height: 1.6 !important;
     margin-bottom: 10px !important;
     padding-bottom: 4px !important;
-    max-height: 4.8em !important;
     display: block !important;
     overflow: hidden !important;
     -webkit-line-clamp: unset !important;

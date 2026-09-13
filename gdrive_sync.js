@@ -412,7 +412,17 @@ class GoogleDriveSync {
       renderNotesList();
 
       if (state.notes.length > 0) {
-        selectNote(state.notes[0].id);
+        if (window.innerWidth > 768) {
+          selectNote(state.notes[0].id);
+        } else {
+          // 手機版：若原本就在清單頁面，不要突兀跳進第一則記事
+          const isMobileInDetail = dom.noteViewPane && dom.noteViewPane.classList.contains('mobile-active');
+          if (isMobileInDetail && state.selectedNoteId) {
+            selectNote(state.selectedNoteId);
+          } else {
+            closeMobileDetailView();
+          }
+        }
       } else {
         selectNote(null);
         closeMobileDetailView();
