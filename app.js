@@ -1494,13 +1494,9 @@ function sanitizeFilename(name) {
   return (name || '記事').replace(/[\\/:*?"<>|]/g, '_').trim();
 }
 
-// 產生圖文教學長圖 (高畫質合成)
+// 產生圖文教學長圖 (高畫質原生 Canvas 2D 合成，100% 杜絕手機卡死與函式庫崩潰)
 async function generateLongImage(note) {
   if (!note) return;
-  if (!window.html2canvas) {
-    alert('正在載入圖形繪製模組，請稍後重試！');
-    return;
-  }
 
   const modal = document.getElementById('export-image-modal');
   const loading = document.getElementById('export-image-loading');
@@ -1510,24 +1506,6 @@ async function generateLongImage(note) {
   modal.classList.remove('hidden');
   loading.style.display = 'block';
   previewContainer.classList.add('hidden');
-
-  // 建立渲染容器 (放在 document.body 開頭並使用 visibility:visible + opacity:0.01 + zIndex:-9999，絕不使用 left:-99999px，因為 WebKit 會直接暫停其佈局和渲染導致 Promise 永遠不返回卡住！)
-  const renderDiv = document.createElement('div');
-  renderDiv.id = 'export-render-canvas-target';
-  renderDiv.style.position = 'absolute';
-  renderDiv.style.top = '0px';
-  renderDiv.style.left = '0px';
-  renderDiv.style.width = '750px';
-  renderDiv.style.minWidth = '750px';
-  renderDiv.style.maxWidth = '750px';
-  renderDiv.style.backgroundColor = '#ffffff';
-  renderDiv.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Noto Sans TC', sans-serif";
-  renderDiv.style.color = '#1e293b';
-  renderDiv.style.padding = '36px';
-  renderDiv.style.boxSizing = 'border-box';
-  renderDiv.style.zIndex = '-9999';
-  renderDiv.style.opacity = '0.01'; // 微小不透明度保證 WebKit 正常執行渲染樹繪製
-  renderDiv.style.pointerEvents = 'none';
 
   const loadingTitle = document.getElementById('export-loading-title');
   const loadingDetail = document.getElementById('export-loading-detail');
@@ -1541,147 +1519,415 @@ async function generateLongImage(note) {
     if (detail && loadingDetail) loadingDetail.textContent = detail;
   }
 
-  updateExportProgress(15, '正在排版教學卡片...', '解析文字與標籤排版 (15%)');
-  await new Promise(r => setTimeout(r, 40));
-
-  // 1. 標頭
-  const categoryText = note.category || '生活記事';
-  const tagsText = (note.tags || []).map(t => `#${t}`).join('  ');
-  const timeText = `建立時間: ${formatDate(note.createdAt)}   最後更新: ${formatDate(note.updatedAt)}`;
-
-  // 2. 附加照片
-  let imagesHtml = '';
-  if (note.images && note.images.length > 0) {
-    updateExportProgress(35, '正在載入附加照片...', `處理附圖 1~${note.images.length} 張 (35%)`);
-    await new Promise(r => setTimeout(r, 40));
-
-    const imgCards = note.images.map((src, i) => `
-      <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center; margin-bottom: 20px;">
-        <img src="${src}" style="max-width:100%; width:auto; height:auto; display:block;" />
-        <div style="font-size:13px; color:#64748b; padding:8px 0; font-weight:600;">附圖 ${i + 1}</div>
-      </div>
-    `).join('');
-
-    imagesHtml = `
-      <div style="margin-top:28px; padding-top:24px; border-top:1px dashed #cbd5e1;">
-        <div style="font-size:16px; font-weight:700; color:#334155; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
-          <span>📷 附加照片紀錄 (${note.images.length} 張)</span>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          ${imgCards}
-        </div>
-      </div>
-    `;
-  }
-
-  // 3. 追加補充記錄
-  let commentsHtml = '';
-  if (note.comments && note.comments.length > 0) {
-    updateExportProgress(50, '正在整理補充紀錄...', `整理 ${note.comments.length} 則時間軸補充 (50%)`);
-    await new Promise(r => setTimeout(r, 40));
-
-    const cItems = note.comments.map((c, idx) => {
-      let cImgHtml = '';
-      if (c.images && c.images.length > 0) {
-        cImgHtml = `
-          <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
-            ${c.images.map((img, cImgIdx) => `
-              <div style="background:#ffffff; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
-                <img src="${img}" style="max-width:100%; width:auto; height:auto; display:block;" />
-                <div style="font-size:12px; color:#64748b; padding:6px 0; text-align:center; font-weight:600;">補充附圖 ${cImgIdx + 1}</div>
-              </div>
-            `).join('')}
-          </div>
-        `;
-      }
-      return `
-        <div style="background:#f8fafc; border-left:4px solid #6366f1; border-radius:4px 8px 8px 4px; padding:16px 20px; margin-bottom:16px;">
-          <div style="font-size:12px; color:#64748b; font-weight:600; margin-bottom:8px;">⏱️ 補充紀錄 #${idx + 1} (${formatDate(c.createdAt)})</div>
-          <div style="font-size:15px; color:#1e293b; white-space:pre-wrap; line-height:1.7;">${escapeHtml(c.content || '')}</div>
-          ${cImgHtml}
-        </div>
-      `;
-    }).join('');
-
-    commentsHtml = `
-      <div style="margin-top:28px; padding-top:24px; border-top:1px dashed #cbd5e1;">
-        <div style="font-size:16px; font-weight:700; color:#334155; margin-bottom:14px;">
-          💬 追加補充備忘 (${note.comments.length} 則)
-        </div>
-        ${cItems}
-      </div>
-    `;
-  }
-
-  renderDiv.innerHTML = `
-    <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 18px;">
-      <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-        <span style="background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">${escapeHtml(categoryText)}</span>
-        <span style="font-size: 13px; color: #6366f1; font-weight: 600;">${escapeHtml(tagsText)}</span>
-      </div>
-      <h1 style="font-size: 26px; font-weight: 800; color: #0f172a; margin: 8px 0; line-height: 1.35;">${escapeHtml(note.title || '未命名記事')}</h1>
-      <div style="font-size: 13px; color: #94a3b8; font-weight: 500;">${timeText}</div>
-    </div>
-
-    <div style="margin-top: 24px; font-size: 15px; line-height: 1.8; color: #334155; white-space: pre-wrap; word-break: break-word;">
-      ${escapeHtml(note.content || '（本記事無詳細內文）')}
-    </div>
-
-    ${imagesHtml}
-    ${commentsHtml}
-
-    <div style="margin-top: 36px; padding-top: 18px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; color: #94a3b8; font-size: 12px;">
-      <span>📖 個人圖文記事本 • SOP 教學匯出</span>
-      <span>${new Date().toLocaleDateString()}</span>
-    </div>
-  `;
-
-  document.body.insertBefore(renderDiv, document.body.firstChild);
-
   try {
-    // 檢查是否為行動裝置 (iPhone / Android)
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
-    const targetScale = isMobile ? 1.0 : 2.0;
+    updateExportProgress(15, '正在載入圖片資源...', '讀取所有附圖與補充圖片 (15%)');
+    await new Promise(r => setTimeout(r, 30));
 
-    // 確保所有圖片完成載入
-    const imgs = Array.from(renderDiv.querySelectorAll('img'));
-    if (imgs.length > 0) {
-      updateExportProgress(65, '正在確認圖片就緒...', `處理 ${imgs.length} 張圖片 (65%)`);
-      await Promise.all(imgs.map(img => {
-        if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
-        return new Promise(resolve => {
-          img.onload = resolve;
-          img.onerror = resolve;
-          setTimeout(resolve, 1500);
-        });
-      }));
-    }
-
-    updateExportProgress(75, '正在高畫質渲染圖像...', '產生點陣圖檔 (75%)');
-    await new Promise(r => setTimeout(r, 60));
-
-    // 使用標準 html2canvas，設定 scrollX / scrollY: 0 保證 Safari 從坐標 0,0 繪製
-    const canvasOptions = {
-      scale: targetScale,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      scrollX: 0,
-      scrollY: 0,
-      x: 0,
-      y: 0,
-      width: 750,
-      windowWidth: 750,
-      logging: false
+    // 輔助函式：非同步載入圖片
+    const loadImage = (src) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+        setTimeout(() => resolve(null), 5000); // 避免超時卡住
+      });
     };
 
-    const canvas = await html2canvas(renderDiv, canvasOptions);
+    // 載入主筆記附圖
+    const noteImages = [];
+    if (note.images && note.images.length > 0) {
+      for (let i = 0; i < note.images.length; i++) {
+        updateExportProgress(20 + Math.floor((i / note.images.length) * 20), '正在載入附圖...', `載入附圖 ${i + 1}/${note.images.length}`);
+        const imgObj = await loadImage(note.images[i]);
+        if (imgObj) noteImages.push(imgObj);
+      }
+    }
 
-    updateExportProgress(95, '正在生成圖像檔案...', '輸出 PNG 影像資料 (95%)');
-    await new Promise(r => setTimeout(r, 50));
+    // 載入補充紀錄附圖
+    const commentsData = [];
+    if (note.comments && note.comments.length > 0) {
+      updateExportProgress(45, '正在整理補充紀錄...', '載入時間軸與追加圖片');
+      for (let c of note.comments) {
+        const cImgs = [];
+        if (c.images && c.images.length > 0) {
+          for (let cImgSrc of c.images) {
+            const imgObj = await loadImage(cImgSrc);
+            if (imgObj) cImgs.push(imgObj);
+          }
+        }
+        commentsData.push({
+          content: c.content || '',
+          createdAt: c.createdAt,
+          images: cImgs
+        });
+      }
+    }
+
+    updateExportProgress(60, '正在計算排版尺寸...', '精準度量各區塊高度 (60%)');
+    await new Promise(r => setTimeout(r, 30));
+
+    // 畫布基礎參數
+    const canvasWidth = 750;
+    const padding = 36;
+    const contentWidth = canvasWidth - (padding * 2); // 678px
+
+    // 測量文字換行與總高度計算
+    const measureCanvas = document.createElement('canvas');
+    const mctx = measureCanvas.getContext('2d');
+
+    const splitTextToLines = (text, font, maxWidth) => {
+      if (!text) return [];
+      mctx.font = font;
+      const lines = [];
+      const paragraphs = String(text).split('\n');
+      for (const p of paragraphs) {
+        if (p === '') {
+          lines.push('');
+          continue;
+        }
+        let currentLine = '';
+        for (let i = 0; i < p.length; i++) {
+          const char = p[i];
+          const testLine = currentLine + char;
+          const w = mctx.measureText(testLine).width;
+          if (w > maxWidth && currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = char;
+          } else {
+            currentLine = testLine;
+          }
+        }
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+      }
+      return lines;
+    };
+
+    // 1. 頂部標籤與分類高度: ~30px
+    // 2. 標題文字換行
+    const titleFont = 'bold 26px -apple-system, BlinkMacSystemFont, "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    const titleLines = splitTextToLines(note.title || '未命名記事', titleFont, contentWidth);
+    const titleHeight = titleLines.length * 36;
+
+    // 3. 時間欄位高度: ~24px
+    // 4. 正文文字換行
+    const bodyFont = '15px -apple-system, BlinkMacSystemFont, "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+    const bodyLines = splitTextToLines(note.content || '（本記事無詳細內文）', bodyFont, contentWidth);
+    const bodyHeight = bodyLines.length * 27;
+
+    // 5. 附圖區塊計算
+    let imagesSectionHeight = 0;
+    const renderedImages = [];
+    if (noteImages.length > 0) {
+      imagesSectionHeight += 40; // 區塊標題
+      for (let img of noteImages) {
+        const aspect = img.width > 0 ? (img.height / img.width) : 0.75;
+        // 限制每張圖片寬度貼齊 contentWidth，或者若是直式大圖限制最高 700px
+        let drawW = contentWidth;
+        let drawH = drawW * aspect;
+        if (drawH > 800) {
+          drawH = 800;
+          drawW = drawH / aspect;
+        }
+        renderedImages.push({ img, w: drawW, h: drawH });
+        imagesSectionHeight += drawH + 42; // 圖高 + 說明文字列與間距
+      }
+    }
+
+    // 6. 補充紀錄區塊計算
+    let commentsSectionHeight = 0;
+    const renderedComments = [];
+    if (commentsData.length > 0) {
+      commentsSectionHeight += 40; // 補充標題
+      for (let c of commentsData) {
+        const cBodyLines = splitTextToLines(c.content, bodyFont, contentWidth - 36);
+        let cItemH = 20 + 22 + (cBodyLines.length * 26) + 16; // 上下 padding + 標題 + 內文
+        const cImgsRender = [];
+        for (let cImg of c.images) {
+          const cAspect = cImg.width > 0 ? (cImg.height / cImg.width) : 0.75;
+          let drawW = contentWidth - 40;
+          let drawH = drawW * cAspect;
+          if (drawH > 650) {
+            drawH = 650;
+            drawW = drawH / cAspect;
+          }
+          cImgsRender.push({ img: cImg, w: drawW, h: drawH });
+          cItemH += drawH + 34;
+        }
+        renderedComments.push({
+          lines: cBodyLines,
+          timeStr: formatDate(c.createdAt),
+          images: cImgsRender,
+          height: cItemH
+        });
+        commentsSectionHeight += cItemH + 16;
+      }
+    }
+
+    // 7. 頁尾高度: ~60px
+    const footerHeight = 60;
+
+    // 總畫布高度
+    const totalHeight = padding 
+      + 34 // category & tags
+      + titleHeight 
+      + 28 // time
+      + 24 // header bottom border gap
+      + bodyHeight 
+      + (imagesSectionHeight > 0 ? imagesSectionHeight + 20 : 0)
+      + (commentsSectionHeight > 0 ? commentsSectionHeight + 20 : 0)
+      + footerHeight 
+      + padding;
+
+    updateExportProgress(75, '正在高畫質合成畫布...', '原生 Canvas 極速繪製 (75%)');
+    await new Promise(r => setTimeout(r, 30));
+
+    // 建立高解析 Canvas (2x scale 保證Retina螢幕極致清晰)
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    const exportScale = isMobile ? 1.5 : 2.0;
+
+    const mainCanvas = document.createElement('canvas');
+    mainCanvas.width = canvasWidth * exportScale;
+    mainCanvas.height = totalHeight * exportScale;
+    const ctx = mainCanvas.getContext('2d');
+    ctx.scale(exportScale, exportScale);
+
+    // --- 開始繪製各元件 ---
+    // 1. 純白背景
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasWidth, totalHeight);
+
+    let currentY = padding;
+
+    // 2. 分類膠囊與標籤
+    const categoryText = note.category || '生活記事';
+    ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+    const catTextW = ctx.measureText(categoryText).width;
+    
+    // 膠囊底色
+    ctx.fillStyle = '#e0e7ff';
+    ctx.beginPath();
+    ctx.roundRect(padding, currentY, catTextW + 20, 24, 6);
+    ctx.fill();
+
+    // 膠囊文字
+    ctx.fillStyle = '#4338ca';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(categoryText, padding + 10, currentY + 12);
+
+    // 標籤文字
+    const tagsText = (note.tags || []).map(t => `#${t}`).join('  ');
+    if (tagsText) {
+      ctx.fillStyle = '#6366f1';
+      ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+      ctx.fillText(tagsText, padding + catTextW + 30, currentY + 12);
+    }
+    currentY += 34;
+
+    // 3. 標題
+    ctx.font = titleFont;
+    ctx.fillStyle = '#0f172a';
+    ctx.textBaseline = 'top';
+    for (const l of titleLines) {
+      ctx.fillText(l, padding, currentY);
+      currentY += 36;
+    }
+    currentY += 4;
+
+    // 4. 建立與更新時間
+    ctx.font = '500 13px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    const timeText = `建立時間: ${formatDate(note.createdAt)}   最後更新: ${formatDate(note.updatedAt)}`;
+    ctx.fillText(timeText, padding, currentY);
+    currentY += 24;
+
+    // 分隔橫線
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padding, currentY);
+    ctx.lineTo(padding + contentWidth, currentY);
+    ctx.stroke();
+    currentY += 24;
+
+    // 5. 正文內容
+    ctx.font = bodyFont;
+    ctx.fillStyle = '#334155';
+    ctx.textBaseline = 'top';
+    for (const l of bodyLines) {
+      ctx.fillText(l, padding, currentY);
+      currentY += 27;
+    }
+
+    // 6. 附圖區塊
+    if (renderedImages.length > 0) {
+      currentY += 12;
+      // 區塊分割線 (虛線)
+      ctx.save();
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(padding, currentY);
+      ctx.lineTo(padding + contentWidth, currentY);
+      ctx.stroke();
+      ctx.restore();
+      currentY += 22;
+
+      // 附圖標題
+      ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+      ctx.fillStyle = '#334155';
+      ctx.fillText(`📷 附加照片紀錄 (${renderedImages.length} 張)`, padding, currentY);
+      currentY += 30;
+
+      // 繪製每張附圖
+      for (let i = 0; i < renderedImages.length; i++) {
+        const item = renderedImages[i];
+        const cardX = padding + ((contentWidth - item.w) / 2);
+        const cardY = currentY;
+
+        // 圖片卡片背景與邊框
+        ctx.fillStyle = '#f8fafc';
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(cardX, cardY, item.w, item.h + 28, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        // 裁切繪製圓角圖片
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(cardX, cardY, item.w, item.h, [10, 10, 0, 0]);
+        ctx.clip();
+        ctx.drawImage(item.img, cardX, cardY, item.w, item.h);
+        ctx.restore();
+
+        // 附圖標註文字
+        ctx.fillStyle = '#64748b';
+        ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`附圖 ${i + 1}`, padding + (contentWidth / 2), cardY + item.h + 14);
+        ctx.textAlign = 'left';
+
+        currentY += item.h + 28 + 14;
+      }
+    }
+
+    // 7. 補充紀錄區塊
+    if (renderedComments.length > 0) {
+      currentY += 12;
+      ctx.save();
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(padding, currentY);
+      ctx.lineTo(padding + contentWidth, currentY);
+      ctx.stroke();
+      ctx.restore();
+      currentY += 22;
+
+      ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+      ctx.fillStyle = '#334155';
+      ctx.fillText(`💬 追加補充備忘 (${renderedComments.length} 則)`, padding, currentY);
+      currentY += 30;
+
+      for (let i = 0; i < renderedComments.length; i++) {
+        const rc = renderedComments[i];
+        const boxX = padding;
+        const boxY = currentY;
+        const boxW = contentWidth;
+        const boxH = rc.height;
+
+        // 補充卡片底色
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, boxW, boxH, 8);
+        ctx.fill();
+
+        // 左邊紫色強調條
+        ctx.fillStyle = '#6366f1';
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, 5, boxH, [8, 0, 0, 8]);
+        ctx.fill();
+
+        let innerY = boxY + 16;
+        // 補充標題與時間
+        ctx.fillStyle = '#64748b';
+        ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+        ctx.fillText(`⏱️ 補充紀錄 #${i + 1} (${rc.timeStr})`, boxX + 18, innerY);
+        innerY += 22;
+
+        // 補充文字
+        ctx.fillStyle = '#1e293b';
+        ctx.font = bodyFont;
+        for (const bl of rc.lines) {
+          ctx.fillText(bl, boxX + 18, innerY);
+          innerY += 26;
+        }
+
+        // 補充附圖
+        for (let j = 0; j < rc.images.length; j++) {
+          const cImgItem = rc.images[j];
+          const imgX = boxX + 18;
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = '#e2e8f0';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(imgX, innerY, cImgItem.w, cImgItem.h + 24, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.roundRect(imgX, innerY, cImgItem.w, cImgItem.h, [6, 6, 0, 0]);
+          ctx.clip();
+          ctx.drawImage(cImgItem.img, imgX, innerY, cImgItem.w, cImgItem.h);
+          ctx.restore();
+
+          ctx.fillStyle = '#64748b';
+          ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`補充附圖 ${j + 1}`, imgX + (cImgItem.w / 2), innerY + cImgItem.h + 12);
+          ctx.textAlign = 'left';
+
+          innerY += cImgItem.h + 34;
+        }
+
+        currentY += boxH + 14;
+      }
+    }
+
+    // 8. 頁尾浮水印
+    currentY += 16;
+    ctx.strokeStyle = '#f1f5f9';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, currentY);
+    ctx.lineTo(padding + contentWidth, currentY);
+    ctx.stroke();
+    currentY += 18;
+
+    ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textBaseline = 'top';
+    ctx.fillText('📖 個人圖文記事本 • SOP 教學匯出', padding, currentY);
+
+    const dateStr = new Date().toLocaleDateString();
+    ctx.textAlign = 'right';
+    ctx.fillText(dateStr, padding + contentWidth, currentY);
+    ctx.textAlign = 'left';
+
+    updateExportProgress(95, '正在生成圖像檔案...', '輸出高畫質 PNG 影像 (95%)');
+    await new Promise(r => setTimeout(r, 40));
 
     // 產生 Blob 與 Object URL
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const blob = await new Promise(resolve => mainCanvas.toBlob(resolve, 'image/png', 0.95));
     if (!blob) throw new Error('無法產生圖片二進位資料');
 
     const objectUrl = URL.createObjectURL(blob);
@@ -1691,11 +1937,11 @@ async function generateLongImage(note) {
     setTimeout(() => {
       loading.style.display = 'none';
       previewContainer.classList.remove('hidden');
-    }, 150);
+    }, 120);
 
     const safeFilename = `【教學】${sanitizeFilename(note.title || '記事')}.png`;
 
-    // 下載按鈕事件 (針對 iOS / 手機深度優化：支援 Web Share API 直接存入相簿)
+    // 下載按鈕事件 (針對 iOS / 手機支援 Web Share API 直接儲存到相簿)
     const btnDownload = document.getElementById('btn-download-export-image');
     btnDownload.onclick = async () => {
       const file = new File([blob], safeFilename, { type: 'image/png' });
@@ -1724,10 +1970,10 @@ async function generateLongImage(note) {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      showToast('長圖已開始下載！若使用 iPhone 請在跳出選單點「檢視」後長按儲存圖片');
+      showToast('長圖已開始下載！若使用 iPhone 請長按預覽圖直接存入相簿！');
     };
 
-    // 複製圖片按鈕事件 (Clipboard Item)
+    // 複製圖片按鈕事件
     const btnCopy = document.getElementById('btn-copy-export-image');
     btnCopy.onclick = async () => {
       try {
@@ -1747,10 +1993,6 @@ async function generateLongImage(note) {
     console.error('合成長圖失敗:', err);
     alert('合成長圖失敗: ' + (err.message || err));
     modal.classList.add('hidden');
-  } finally {
-    if (renderDiv && renderDiv.parentNode) {
-      renderDiv.parentNode.removeChild(renderDiv);
-    }
   }
 }
 async function urlToDataURL(url) {
