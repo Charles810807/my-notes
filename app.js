@@ -1167,6 +1167,9 @@ async function confirmDeleteNote(noteId) {
   if (confirm(`確定要刪除「${noteName}」嗎？刪除後無法復原。`)) {
     try {
       await state.db.deleteNote(noteId);
+      if (window.gDriveSync) {
+        window.gDriveSync.recordDeletion(noteId);
+      }
       if (isServerOnline) {
         await syncDeleteToServer(noteId);
       }

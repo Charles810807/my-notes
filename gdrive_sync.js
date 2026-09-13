@@ -108,6 +108,16 @@ class GoogleDriveSync {
     }
   }
 
+  recordDeletion(noteId) {
+    try {
+      const deleted = new Set(JSON.parse(localStorage.getItem('gdrive_deleted_ids') || '[]'));
+      deleted.add(noteId);
+      localStorage.setItem('gdrive_deleted_ids', JSON.stringify(Array.from(deleted)));
+    } catch (e) {
+      console.warn('記錄刪除標記失敗:', e);
+    }
+  }
+
   async findOrCreateDriveFile() {
     if (this.fileId) {
       // 驗證一下 fileId 是否依然有效存在
@@ -200,19 +210,32 @@ class GoogleDriveSync {
         console.warn('下載 Google Drive 檔案失敗:', e);
       }
 
-      // 2. 取得本機 IndexedDB 資料
+      // 2. 取得本機 IndexedDB 資料與刪除墓碑 (tombstones)
       const localNotes = await state.db.getAllNotes();
       const localCategories = await state.db.getCategories();
+      let localDeletedIds = new Set(JSON.parse(localStorage.getItem('gdrive_deleted_ids') || '[]'));
       let stateChanged = false;
 
       // 3. 雙向合併 (Merge)
       if (cloudData && Array.isArray(cloudData.notes)) {
         const cloudNotes = cloudData.notes;
-        const cloudIds = new Set(cloudNotes.map(n => n.id));
-        const localIds = new Set(localNotes.map(n => n.id));
+        const cloudDeletedIds = new Set(Array.isArray(cloudData.deletedNoteIds) ? cloudData.deletedNoteIds : []);
 
-        // 雲端有、本地沒有或雲端較新 -> 更新本地
+        // 合併雙方的刪除清單
+        const mergedDeletedIds = new Set([...localDeletedIds, ...cloudDeletedIds]);
+
+        // A. 處理刪除：如果在合併後的刪除清單中，本機必須刪除
+        for (let ln of localNotes) {
+          if (mergedDeletedIds.has(ln.id)) {
+            await state.db.deleteNote(ln.id);
+            stateChanged = true;
+          }
+        }
+
+        // B. 處理新增與更新：排除已刪除的記事
         for (let cn of cloudNotes) {
+          if (mergedDeletedIds.has(cn.id)) continue;
+
           const lm = localNotes.find(ln => ln.id === cn.id);
           const cnTime = new Date(cn.updatedAt || 0).getTime();
           const lmTime = lm ? new Date(lm.updatedAt || 0).getTime() : 0;
@@ -225,6 +248,10 @@ class GoogleDriveSync {
           }
         }
 
+        // 更新本機記錄的刪除清單
+        localStorage.setItem('gdrive_deleted_ids', JSON.stringify(Array.from(mergedDeletedIds)));
+        localDeletedIds = mergedDeletedIds;
+
         // 分類合併
         if (cloudData.categories && Array.isArray(cloudData.categories)) {
           const mergedCats = Array.from(new Set([...localCategories, ...cloudData.categories])).filter(c => !c.includes('?'));
@@ -236,14 +263,16 @@ class GoogleDriveSync {
         }
       }
 
-      // 4. 合併完後，取得本地最新完整資料並將雲端同步更新上去
-      const finalNotes = await state.db.getAllNotes();
+      // 4. 合併完後，取得本地最新完整資料並將雲端同步更新上去 (排除已刪除)
+      const allCurrentNotes = await state.db.getAllNotes();
+      const finalNotes = allCurrentNotes.filter(n => !localDeletedIds.has(n.id));
       const finalCategories = await state.db.getCategories();
 
       const payload = {
         version: '1.2.0',
         exportedAt: new Date().toISOString(),
         categories: finalCategories,
+        deletedNoteIds: Array.from(localDeletedIds),
         notes: finalNotes
       };
 
@@ -267,7 +296,12 @@ class GoogleDriveSync {
         renderNotesList();
         if (state.selectedNoteId) {
           const current = state.notes.find(n => n.id === state.selectedNoteId);
-          if (current) selectNote(current.id);
+          if (current) {
+            selectNote(current.id);
+          } else {
+            selectNote(null);
+            closeMobileDetailView();
+          }
         }
       }
 
