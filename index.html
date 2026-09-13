@@ -65,9 +65,23 @@
 
       <!-- 側邊欄底部工具區 -->
       <div class="sidebar-footer">
-        <!-- Google Drive 雲端備份與還原區塊 (獨立分開) -->
-        <div id="gdrive-section" class="gdrive-sync-section" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border-color);">
-          <div id="gdrive-user-label" style="display: none; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; word-break: break-all; padding: 0 4px;"></div>
+        <!-- 本地工具列 (改為純圖示橫排，精簡省空間) -->
+        <div class="local-icon-toolbar" style="display: flex; align-items: center; justify-content: space-around; padding: 4px 0 10px 0; border-bottom: 1px dashed var(--border-color); margin-bottom: 6px;">
+          <button id="btn-mobile-connect" class="icon-btn" style="color: var(--primary);" title="手機網頁連線 (QR Code)">
+            <span class="material-symbols-rounded">smartphone</span>
+          </button>
+          <button id="btn-export-data" class="icon-btn" style="color: var(--text-secondary);" title="備份匯出 (下載 JSON 檔)">
+            <span class="material-symbols-rounded">download</span>
+          </button>
+          <button id="btn-import-trigger" class="icon-btn" style="color: var(--text-secondary);" title="還原匯入 (讀取 JSON 檔)">
+            <span class="material-symbols-rounded">upload</span>
+          </button>
+          <input type="file" id="file-import" accept=".json" style="display: none;">
+        </div>
+
+        <!-- Google Drive 雲端備份與還原區塊 (移至下方) -->
+        <div id="gdrive-section" class="gdrive-sync-section">
+          <div id="gdrive-user-label" style="display: none; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px; word-break: break-all; padding: 0 4px;"></div>
           
           <button id="btn-gdrive-login" class="btn btn-text btn-gdrive-connect" title="連結 Google Drive 帳號">
             <span class="material-symbols-rounded">cloud_sync</span>
@@ -86,21 +100,7 @@
           </div>
         </div>
 
-        <button id="btn-mobile-connect" class="btn btn-text" style="color: var(--primary); font-weight: 600;" title="在手機上開啟記事本">
-          <span class="material-symbols-rounded">smartphone</span>
-          <span>手機網頁連線</span>
-        </button>
-        <button id="btn-export-data" class="btn btn-text" title="備份所有資料至電腦">
-          <span class="material-symbols-rounded">download</span>
-          <span>備份匯出</span>
-        </button>
-        <button id="btn-import-trigger" class="btn btn-text" title="從備份檔還原資料">
-          <span class="material-symbols-rounded">upload</span>
-          <span>還原匯入</span>
-        </button>
-        <input type="file" id="file-import" accept=".json" style="display: none;">
-
-        <!-- 狀態列移至最底端 -->
+        <!-- 狀態列在最底端 -->
         <div id="gdrive-sync-badge" class="sync-status-badge" style="display: none; margin-top: 8px; margin-bottom: 0;">
           <span class="sync-dot offline"></span><span>Google Drive 未連結</span>
         </div>
