@@ -216,18 +216,40 @@ body {
   color: var(--primary-dark);
 }
 
-.category-delete-btn {
+.category-action-btn {
   display: none;
+  font-size: 1.15rem;
   color: var(--text-muted);
-  margin-left: 6px;
+  margin-left: 4px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  transition: all 0.2s ease;
 }
 
-.category-item:hover .category-delete-btn {
-  display: block;
+.category-item:hover .category-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-edit-btn:hover {
+  color: var(--primary);
+  background: rgba(6, 199, 85, 0.1);
 }
 
 .category-delete-btn:hover {
   color: var(--danger);
+  background: var(--danger-light);
+}
+
+/* 手機版常駐顯示編輯與刪除小圖示方便觸控 */
+@media (max-width: 768px) {
+  .category-action-btn {
+    display: inline-flex !important;
+    font-size: 1.1rem;
+    margin-left: 6px;
+  }
 }
 
 /* 側邊欄底部工具區 */

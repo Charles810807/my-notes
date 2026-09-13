@@ -413,10 +413,16 @@ function renderCategories() {
       <span class="material-symbols-rounded">folder</span>
       <span class="category-name" title="${escapeHtml(cat)}">${escapeHtml(cat)}</span>
       <span class="category-count">${count}</span>
-      <span class="material-symbols-rounded category-delete-btn" title="刪除此分類">delete</span>
+      <span class="material-symbols-rounded category-action-btn category-edit-btn" title="編輯分類名稱">edit</span>
+      <span class="material-symbols-rounded category-action-btn category-delete-btn" title="刪除此分類">delete</span>
     `;
 
     li.addEventListener('click', (e) => {
+      if (e.target.classList.contains('category-edit-btn')) {
+        e.stopPropagation();
+        editCategoryPrompt(cat);
+        return;
+      }
       if (e.target.classList.contains('category-delete-btn')) {
         e.stopPropagation();
         confirmDeleteCategory(cat);
@@ -1221,6 +1227,52 @@ async function addNewCategoryPrompt() {
   renderCategories();
   setCategory(cleanName);
   showToast(`已建立新分類「${cleanName}」`);
+}
+
+async function editCategoryPrompt(oldName) {
+  const newName = prompt(`請輸入「${oldName}」的新名稱:`, oldName);
+  if (!newName || !newName.trim()) return;
+  const cleanNew = newName.trim();
+  if (cleanNew === oldName) return;
+
+  if (state.categories.includes(cleanNew)) {
+    alert('該分類名稱已存在！');
+    return;
+  }
+
+  // 1. 更新分類清單中的名稱
+  const catIdx = state.categories.indexOf(oldName);
+  if (catIdx !== -1) {
+    state.categories[catIdx] = cleanNew;
+  }
+  await state.db.saveCategories(state.categories);
+
+  // 2. 將所有屬於原分類的記事自動轉換至新分類
+  for (let note of state.notes) {
+    if (note.category === oldName) {
+      note.category = cleanNew;
+      note.updatedAt = Date.now();
+      await state.db.saveNote(note);
+      if (isServerOnline) {
+        await syncNoteToServer(note);
+      }
+    }
+  }
+
+  if (isServerOnline) {
+    await syncCategoriesToServer(state.categories);
+  }
+
+  // 3. 同步當前選中的分類狀態
+  if (state.currentCategory === oldName) {
+    state.currentCategory = cleanNew;
+  }
+
+  triggerCloudSync();
+  renderCategories();
+  renderNotesList();
+  if (state.selectedNoteId) selectNote(state.selectedNoteId);
+  showToast(`分類已更名為「${cleanNew}」`);
 }
 
 async function confirmDeleteCategory(cat) {
