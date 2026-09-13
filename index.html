@@ -113,7 +113,10 @@
             <span id="filtered-count" class="badge">0 則</span>
           </div>
         </div>
-        <div class="list-actions">
+        <div class="list-actions" style="display: flex; align-items: center; gap: 8px;">
+          <button id="btn-manual-sync" class="icon-btn" title="手動同步 Google Drive 最新資料" style="color: var(--primary); background: var(--primary-light); border-radius: var(--radius-sm); padding: 4px 6px;">
+            <span class="material-symbols-rounded" style="font-size: 20px;">sync</span>
+          </button>
           <select id="sort-select" class="select-dropdown">
             <option value="updated-desc">更新時間 (新到舊)</option>
             <option value="updated-asc">更新時間 (舊到新)</option>

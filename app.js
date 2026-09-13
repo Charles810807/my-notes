@@ -1536,6 +1536,22 @@ function initEventListeners() {
     });
   }
 
+  // 頂部清單列的手動同步小按鈕
+  const btnManualSync = document.getElementById('btn-manual-sync');
+  if (btnManualSync) {
+    btnManualSync.addEventListener('click', () => {
+      if (window.gDriveSync) {
+        if (!window.gDriveSync.isLoggedIn()) {
+          window.gDriveSync.signIn();
+        } else {
+          window.gDriveSync.syncNow(false);
+        }
+      } else {
+        showToast('雲端模組載入中...', 'info');
+      }
+    });
+  }
+
   dom.btnCloseModal.addEventListener('click', closeEditor);
   dom.btnCancelEdit.addEventListener('click', closeEditor);
   dom.btnSaveNote.addEventListener('click', saveCurrentNote);
