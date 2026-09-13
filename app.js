@@ -970,6 +970,10 @@ function selectNote(noteId) {
               ${tagsHtml}
             </div>
             <div class="detail-actions">
+              <button class="btn btn-secondary btn-sm" id="btn-export-image" title="匯出教學長圖 (圖文合一分享)">
+                <span class="material-symbols-rounded" style="color: var(--primary)">photo</span>
+                <span>匯出長圖</span>
+              </button>
               <button class="btn btn-secondary btn-sm" id="btn-toggle-pin" title="${note.isPinned ? '取消置頂' : '置頂'}">
                 <span class="material-symbols-rounded" style="color: ${note.isPinned ? 'var(--warning)' : 'inherit'}">push_pin</span>
                 <span>${note.isPinned ? '已置頂' : '置頂'}</span>
@@ -1007,6 +1011,11 @@ function selectNote(noteId) {
     });
   }
 
+
+  const btnExportImage = document.getElementById('btn-export-image');
+  if (btnExportImage) {
+    btnExportImage.addEventListener('click', () => generateLongImage(note));
+  }
 
   document.getElementById('btn-edit-current').addEventListener('click', () => openEditor(note));
   document.getElementById('btn-delete-current').addEventListener('click', () => confirmDeleteNote(note.id));
@@ -1476,6 +1485,172 @@ async function downloadAllImagesAsZip(note) {
 function sanitizeFilename(name) {
   return (name || '記事').replace(/[\\/:*?"<>|]/g, '_').trim();
 }
+
+// 產生圖文教學長圖 (高畫質合成)
+async function generateLongImage(note) {
+  if (!note) return;
+  if (!window.html2canvas) {
+    alert('正在載入圖形繪製模組，請稍後重試！');
+    return;
+  }
+
+  const modal = document.getElementById('export-image-modal');
+  const loading = document.getElementById('export-image-loading');
+  const previewContainer = document.getElementById('export-image-preview-container');
+  const previewImg = document.getElementById('export-image-preview');
+
+  modal.classList.remove('hidden');
+  loading.style.display = 'block';
+  previewContainer.classList.add('hidden');
+
+  // 建立隱藏的渲染容器 (寬度 800px，SOP 精緻排版)
+  const renderDiv = document.createElement('div');
+  renderDiv.style.position = 'fixed';
+  renderDiv.style.left = '-9999px';
+  renderDiv.style.top = '0';
+  renderDiv.style.width = '800px';
+  renderDiv.style.backgroundColor = '#ffffff';
+  renderDiv.style.fontFamily = "'Noto Sans TC', sans-serif";
+  renderDiv.style.color = '#1e293b';
+  renderDiv.style.padding = '40px';
+  renderDiv.style.boxSizing = 'border-box';
+
+  // 1. 標頭
+  const categoryText = note.category || '生活記事';
+  const tagsText = (note.tags || []).map(t => `#${t}`).join('  ');
+  const timeText = `建立時間: ${formatDate(note.createdAt)}   最後更新: ${formatDate(note.updatedAt)}`;
+
+  // 2. 附加照片
+  let imagesHtml = '';
+  if (note.images && note.images.length > 0) {
+    const imgCards = note.images.map((src, i) => `
+      <div style="background:#f8fafc; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; display:flex; flex-direction:column; align-items:center;">
+        <img src="${src}" style="width:100%; height:auto; display:block; object-fit:contain; max-height:450px;" />
+        <div style="font-size:12px; color:#64748b; padding:6px 0; font-weight:600;">附圖 ${i + 1}</div>
+      </div>
+    `).join('');
+
+    imagesHtml = `
+      <div style="margin-top:28px; padding-top:24px; border-top:1px dashed #cbd5e1;">
+        <div style="font-size:16px; font-weight:700; color:#334155; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+          <span>📷 附加照片紀錄 (${note.images.length} 張)</span>
+        </div>
+        <div style="display:grid; grid-template-columns: ${note.images.length === 1 ? '1fr' : 'repeat(2, 1fr)'}; gap:16px;">
+          ${imgCards}
+        </div>
+      </div>
+    `;
+  }
+
+  // 3. 追加補充記錄
+  let commentsHtml = '';
+  if (note.comments && note.comments.length > 0) {
+    const cItems = note.comments.map((c, idx) => {
+      let cImgHtml = '';
+      if (c.images && c.images.length > 0) {
+        cImgHtml = `
+          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;">
+            ${c.images.map(img => `<img src="${img}" style="width:100%; border-radius:6px; border:1px solid #e2e8f0;" />`).join('')}
+          </div>
+        `;
+      }
+      return `
+        <div style="background:#f8fafc; border-left:4px solid #6366f1; border-radius:4px 8px 8px 4px; padding:14px 18px; margin-bottom:14px;">
+          <div style="font-size:12px; color:#64748b; font-weight:600; margin-bottom:6px;">⏱️ 補充紀錄 #${idx + 1} (${formatDate(c.createdAt)})</div>
+          <div style="font-size:15px; color:#1e293b; white-space:pre-wrap; line-height:1.6;">${escapeHtml(c.content || '')}</div>
+          ${cImgHtml}
+        </div>
+      `;
+    }).join('');
+
+    commentsHtml = `
+      <div style="margin-top:28px; padding-top:24px; border-top:1px dashed #cbd5e1;">
+        <div style="font-size:16px; font-weight:700; color:#334155; margin-bottom:14px;">
+          💬 追加補充備忘 (${note.comments.length} 則)
+        </div>
+        ${cItems}
+      </div>
+    `;
+  }
+
+  renderDiv.innerHTML = `
+    <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 18px;">
+      <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <span style="background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">${escapeHtml(categoryText)}</span>
+        <span style="font-size: 13px; color: #6366f1; font-weight: 600;">${escapeHtml(tagsText)}</span>
+      </div>
+      <h1 style="font-size: 28px; font-weight: 800; color: #0f172a; margin: 8px 0; line-height: 1.3;">${escapeHtml(note.title || '未命名記事')}</h1>
+      <div style="font-size: 13px; color: #94a3b8; font-weight: 500;">${timeText}</div>
+    </div>
+
+    <div style="margin-top: 24px; font-size: 16px; line-height: 1.8; color: #334155; white-space: pre-wrap; word-break: break-word;">
+      ${escapeHtml(note.content || '（本記事無詳細內文）')}
+    </div>
+
+    ${imagesHtml}
+    ${commentsHtml}
+
+    <div style="margin-top: 36px; padding-top: 18px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; color: #94a3b8; font-size: 12px;">
+      <span>📖 個人圖文記事本 • SOP 教學匯出</span>
+      <span>${new Date().toLocaleDateString()}</span>
+    </div>
+  `;
+
+  document.body.appendChild(renderDiv);
+
+  try {
+    // 渲染為 2x 高解析度 Canvas
+    const canvas = await html2canvas(renderDiv, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    });
+
+    const dataUrl = canvas.toDataURL('image/png');
+    previewImg.src = dataUrl;
+    loading.style.display = 'none';
+    previewContainer.classList.remove('hidden');
+
+    // 下載按鈕事件
+    const btnDownload = document.getElementById('btn-download-export-image');
+    btnDownload.onclick = () => {
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `【教學】${sanitizeFilename(note.title || '記事')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('長圖已成功下載至您的裝置！');
+    };
+
+    // 複製圖片按鈕事件 (Clipboard Item)
+    const btnCopy = document.getElementById('btn-copy-export-image');
+    btnCopy.onclick = async () => {
+      try {
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            showToast('複製圖片失敗，請直接點擊下載長圖');
+            return;
+          }
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          showToast('長圖已複製！可直接至通訊軟體 (LINE/Teams) 按 Ctrl+V 貼上！');
+        });
+      } catch (err) {
+        showToast('您的瀏覽器不支援直接複製圖片，請使用「下載長圖」！');
+      }
+    };
+
+  } catch (err) {
+    console.error('合成長圖失敗:', err);
+    alert('合成長圖失敗: ' + err.message);
+    modal.classList.add('hidden');
+  } finally {
+    document.body.removeChild(renderDiv);
+  }
+}
 async function urlToDataURL(url) {
   if (!url || typeof url !== 'string') return url;
   if (url.startsWith('data:image/')) return url;
@@ -1798,6 +1973,17 @@ function initEventListeners() {
   if (dom.mobileModalBackdrop) {
     dom.mobileModalBackdrop.addEventListener('click', closeMobileModal);
   }
+
+  // 匯出長圖視窗關閉事件
+  const exportModal = document.getElementById('export-image-modal');
+  const btnCloseExportModal = document.getElementById('btn-close-export-modal');
+  const exportImageBackdrop = document.getElementById('export-image-backdrop');
+  if (btnCloseExportModal && exportModal) {
+    btnCloseExportModal.addEventListener('click', () => exportModal.classList.add('hidden'));
+  }
+  if (exportImageBackdrop && exportModal) {
+    exportImageBackdrop.addEventListener('click', () => exportModal.classList.add('hidden'));
+  }
   if (dom.btnCopyMobileUrl) {
     dom.btnCopyMobileUrl.addEventListener('click', () => {
       dom.mobileUrlInput.select();
@@ -1877,7 +2063,10 @@ function initEventListeners() {
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (!dom.lightboxModal.classList.contains('hidden')) {
+      const exportModal = document.getElementById('export-image-modal');
+      if (exportModal && !exportModal.classList.contains('hidden')) {
+        exportModal.classList.add('hidden');
+      } else if (!dom.lightboxModal.classList.contains('hidden')) {
         closeLightbox();
       } else if (!dom.mobileModal.classList.contains('hidden')) {
         closeMobileModal();

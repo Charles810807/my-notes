@@ -343,6 +343,44 @@
     </div>
   </div>
 
+  <!-- 匯出長圖預覽 Modal -->
+  <div id="export-image-modal" class="modal hidden" style="z-index: 2100;">
+    <div class="modal-backdrop" id="export-image-backdrop"></div>
+    <div class="modal-content" style="max-width: 600px; max-height: 92vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="font-size: 1.1rem; display: flex; align-items: center; gap: 8px; margin: 0;">
+          <span class="material-symbols-rounded" style="color: var(--primary);">image</span>
+          <span>匯出圖文教學長圖</span>
+        </h3>
+        <button id="btn-close-export-modal" class="icon-btn" title="關閉">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 16px; overflow-y: auto; text-align: center; background: #f8fafc;">
+        <div id="export-image-loading" style="padding: 40px 0;">
+          <span class="material-symbols-rounded sync-spin" style="font-size: 40px; color: var(--primary);">sync</span>
+          <p style="margin-top: 12px; color: var(--text-secondary); font-size: 0.92rem;">正在高畫質合成圖文長圖，請稍候...</p>
+        </div>
+        <div id="export-image-preview-container" class="hidden">
+          <img id="export-image-preview" src="" alt="長圖預覽" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: var(--shadow-md); border: 1px solid var(--border-color);">
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 14px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <span style="font-size: 0.8rem; color: var(--text-muted);">提示：可直接下載 PNG 或複製圖片貼到通訊軟體</span>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" id="btn-copy-export-image" class="btn btn-secondary btn-sm">
+            <span class="material-symbols-rounded">content_copy</span>
+            <span>複製圖片</span>
+          </button>
+          <button type="button" id="btn-download-export-image" class="btn btn-primary btn-sm">
+            <span class="material-symbols-rounded">download</span>
+            <span>下載長圖 (PNG)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 提示訊息 Toast -->
   <div id="toast" class="toast hidden"></div>
 
@@ -350,6 +388,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="gdrive_sync.js"></script>
   <script src="app.js"></script>
 </body>
