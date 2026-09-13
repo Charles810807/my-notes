@@ -65,6 +65,22 @@
 
       <!-- 側邊欄底部工具區 -->
       <div class="sidebar-footer">
+        <!-- Google Drive 雲端全自動同步區塊 -->
+        <div id="gdrive-section" class="gdrive-sync-section" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--border-color);">
+          <div id="gdrive-sync-badge" class="sync-status-badge" style="display: none; margin-bottom: 6px;">
+            <span class="sync-dot offline"></span><span>Google Drive 未連結</span>
+          </div>
+          <div id="gdrive-user-label" style="display: none; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; word-break: break-all; padding: 0 4px;"></div>
+          <button id="btn-gdrive-login" class="btn btn-text btn-gdrive-connect" title="連結 Google Drive 自動同步">
+            <span class="material-symbols-rounded">cloud_sync</span>
+            <span>連結 Google Drive 同步</span>
+          </button>
+          <button id="btn-gdrive-sync" class="btn btn-text" style="display: none; color: #16a34a; font-weight: 600;" title="立即與 Google Drive 進行雙向同步">
+            <span class="material-symbols-rounded">sync</span>
+            <span>立即雲端雙向同步</span>
+          </button>
+        </div>
+
         <button id="btn-mobile-connect" class="btn btn-text" style="color: var(--primary); font-weight: 600;" title="在手機上開啟記事本">
           <span class="material-symbols-rounded">smartphone</span>
           <span>手機網頁連線</span>
@@ -286,7 +302,7 @@
       </div>
       <div class="modal-body" style="padding: 24px 20px; display: flex; flex-direction: column; align-items: center;">
         <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
-          只要手機與電腦連上<strong>同一個 Wi-Fi (區網)</strong>，<br>用手機相機掃描下方 QR Code 即可直接使用：
+          用手機相機掃描下方 QR Code 或輸入網址，<br>即可直接在手機上隨身開啟記事本：
         </p>
         <div id="qrcode-container" style="padding: 12px; background: #ffffff; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); display: inline-block;"></div>
         <div style="margin-top: 18px; width: 100%;">
@@ -298,7 +314,7 @@
         </div>
       </div>
       <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: center;">
-        <span style="font-size: 0.8rem; color: var(--text-muted);">提示：手機新增記事與圖片，電腦端會即時自動存檔入庫！</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">提示：登入 Google Drive 後，手機與電腦隨時隨地全自動雙向同步！</span>
       </div>
     </div>
   </div>
@@ -306,8 +322,11 @@
   <!-- 提示訊息 Toast -->
   <div id="toast" class="toast hidden"></div>
 
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="data/sync_data.js"></script>
+  <script src="gdrive_sync.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

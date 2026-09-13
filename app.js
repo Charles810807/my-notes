@@ -130,6 +130,17 @@ async function syncRestoreToServer(notes, categories) {
   return null;
 }
 
+// 雲端 Google Drive 防抖即時觸發
+let cloudSyncTimer = null;
+function triggerCloudSync() {
+  if (window.gDriveSync && window.gDriveSync.isLoggedIn()) {
+    if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(() => {
+      window.gDriveSync.syncNow(true);
+    }, 1500); // 編輯後 1.5 秒自動靜默同步至 Google Drive
+  }
+}
+
 /**
  * 個人圖文記事本 (LINE 記事本替代軟體)
  * 核心功能：IndexedDB 本地儲存、剪貼簿圖片貼上、拖曳上傳、即時搜尋、分類標籤、備份匯出與還原
@@ -726,6 +737,7 @@ function bindCommentsEvents(note) {
     commentInput.value = '';
     previewBar.innerHTML = '';
     await syncNoteToServer(note);
+    triggerCloudSync();
     renderNotesList();
     selectNote(note.id);
     showToast('已成功追加補充記錄！');
@@ -752,6 +764,7 @@ function bindCommentsEvents(note) {
           activeNote.updatedAt = Date.now();
           await state.db.saveNote(activeNote);
           await syncNoteToServer(activeNote);
+          triggerCloudSync();
           renderNotesList();
           selectNote(activeNote.id);
           showToast('已刪除該筆補充');
@@ -801,6 +814,7 @@ function updateCommentsTimelineOnly(note) {
           note.updatedAt = Date.now();
           await state.db.saveNote(note);
           await syncNoteToServer(note);
+          triggerCloudSync();
           renderNotesList();
           selectNote(note.id);
           showToast('已刪除該筆補充');
@@ -848,6 +862,7 @@ async function saveEditedComment() {
 
   await state.db.saveNote(note);
   await syncNoteToServer(note);
+  triggerCloudSync();
 
   closeEditCommentModal();
   renderNotesList();
@@ -1132,6 +1147,7 @@ async function saveCurrentNote() {
       state.notes.unshift(noteObj);
     }
 
+    triggerCloudSync();
     closeEditor();
     renderCategories();
     renderNotesList();
@@ -1158,6 +1174,7 @@ async function confirmDeleteNote(noteId) {
       if (state.selectedNoteId === noteId) {
         state.selectedNoteId = null;
       }
+      triggerCloudSync();
       renderCategories();
       renderNotesList();
       selectNote(null);
@@ -1177,6 +1194,7 @@ async function togglePinNote(noteId) {
   note.isPinned = !note.isPinned;
   note.updatedAt = Date.now();
   await state.db.saveNote(note);
+  triggerCloudSync();
   renderCategories();
   renderNotesList();
   selectNote(note.id);
@@ -1196,6 +1214,7 @@ async function addNewCategoryPrompt() {
   if (isServerOnline) {
     await syncCategoriesToServer(state.categories);
   }
+  triggerCloudSync();
   renderCategories();
   setCategory(cleanName);
   showToast(`已建立新分類「${cleanName}」`);
@@ -1205,9 +1224,10 @@ async function confirmDeleteCategory(cat) {
   if (confirm(`確定要刪除「${cat}」分類標籤嗎？（屬於此分類的記事不會被刪除，會改歸類至預設分類）`)) {
     state.categories = state.categories.filter(c => c !== cat);
     await state.db.saveCategories(state.categories);
-  if (isServerOnline) {
-    await syncCategoriesToServer(state.categories);
-  }
+    if (isServerOnline) {
+      await syncCategoriesToServer(state.categories);
+    }
+    triggerCloudSync();
 
     const defaultCat = state.categories[0];
     for (let note of state.notes) {
@@ -1433,6 +1453,30 @@ function initEventListeners() {
       e.target.value = '';
     }
   });
+
+  // Google Drive 同步按鈕事件
+  const btnGDriveLogin = document.getElementById('btn-gdrive-login');
+  const btnGDriveSync = document.getElementById('btn-gdrive-sync');
+  if (btnGDriveLogin) {
+    btnGDriveLogin.addEventListener('click', () => {
+      if (window.gDriveSync) {
+        if (window.gDriveSync.isLoggedIn()) {
+          if (confirm('確定要登出 Google 帳號嗎？登出後將暫停自動雲端同步。')) {
+            window.gDriveSync.signOut();
+          }
+        } else {
+          window.gDriveSync.signIn();
+        }
+      }
+    });
+  }
+  if (btnGDriveSync) {
+    btnGDriveSync.addEventListener('click', () => {
+      if (window.gDriveSync) {
+        window.gDriveSync.syncNow(false);
+      }
+    });
+  }
 
   dom.btnCloseModal.addEventListener('click', closeEditor);
   dom.btnCancelEdit.addEventListener('click', closeEditor);
@@ -1759,6 +1803,11 @@ async function initApp() {
     doFullSync();
     setInterval(doFullSync, 2000); // 每 2 秒進行一次雙向智慧比對，手機刪除電腦 2 秒內同步消失！
 
+
+    // 初始化 Google Drive 雲端同步模組
+    if (window.gDriveSync) {
+      window.gDriveSync.init();
+    }
 
   } catch (err) {
     console.error('應用程式初始化失敗:', err);
