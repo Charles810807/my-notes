@@ -241,25 +241,29 @@ class GoogleDriveSync {
           }
         }
 
-        // 更新本機記錄的刪除清單
-        localStorage.setItem('gdrive_deleted_ids', JSON.stringify(Array.from(mergedDeletedIds)));
-        localDeletedIds = mergedDeletedIds;
+        // 分類同步：以最新的 categories 為準 (若雲端比本地新，或本地比雲端新，不再做 Union Set 聯集，避免被更名或刪除的舊分類復活)
+        const cloudCats = cloudData.categories || [];
+        const cloudCatsTime = cloudData.exportedAt ? new Date(cloudData.exportedAt).getTime() : 0;
+        const localCatsTime = parseInt(localStorage.getItem('cats_updated_at') || '0', 10);
 
-        // 分類合併
-        if (cloudData.categories && Array.isArray(cloudData.categories)) {
-          const mergedCats = Array.from(new Set([...localCategories, ...cloudData.categories])).filter(c => !c.includes('?'));
-          if (mergedCats.length !== localCategories.length) {
-            await state.db.saveCategories(mergedCats);
-            state.categories = mergedCats;
-            stateChanged = true;
-          }
+        if (cloudCats.length > 0 && cloudCatsTime > localCatsTime) {
+          // 雲端較新，使用雲端分類
+          await state.db.saveCategories(cloudCats);
+          state.categories = cloudCats;
+          localStorage.setItem('cats_updated_at', cloudCatsTime.toString());
+          stateChanged = true;
         }
       }
 
-      // 4. 合併完後，取得本地最新完整資料並將雲端同步更新上去 (排除已刪除)
+      // 4. 清理無效分類：如果分類裡已經沒有任何記事，且該分類是被更名前遺留的舊分類，自動清理
+      const currentNotesForCats = await state.db.getAllNotes();
+      const usedCats = new Set(currentNotesForCats.map(n => n.category).filter(Boolean));
+      // 保持使用者現有分類，但清除問號或空值
+      let finalCategories = (await state.db.getCategories()).filter(c => c && !c.includes('?'));
+
+      // 合併完後，取得本地最新完整資料並將雲端同步更新上去 (排除已刪除)
       const allCurrentNotes = await state.db.getAllNotes();
       const finalNotes = allCurrentNotes.filter(n => !localDeletedIds.has(n.id));
-      const finalCategories = await state.db.getCategories();
 
       const payload = {
         version: '1.2.0',

@@ -1220,6 +1220,7 @@ async function addNewCategoryPrompt() {
   }
   state.categories.push(cleanName);
   await state.db.saveCategories(state.categories);
+  localStorage.setItem('cats_updated_at', Date.now().toString());
   if (isServerOnline) {
     await syncCategoriesToServer(state.categories);
   }
@@ -1246,6 +1247,7 @@ async function editCategoryPrompt(oldName) {
     state.categories[catIdx] = cleanNew;
   }
   await state.db.saveCategories(state.categories);
+  localStorage.setItem('cats_updated_at', Date.now().toString());
 
   // 2. 將所有屬於原分類的記事自動轉換至新分類
   for (let note of state.notes) {
@@ -1279,6 +1281,7 @@ async function confirmDeleteCategory(cat) {
   if (confirm(`確定要刪除「${cat}」分類標籤嗎？（屬於此分類的記事不會被刪除，會改歸類至預設分類）`)) {
     state.categories = state.categories.filter(c => c !== cat);
     await state.db.saveCategories(state.categories);
+    localStorage.setItem('cats_updated_at', Date.now().toString());
     if (isServerOnline) {
       await syncCategoriesToServer(state.categories);
     }
