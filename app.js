@@ -2466,6 +2466,91 @@ function initEventListeners() {
   }
 
 
+  // 手機端下拉重新整理 (Pull-to-Refresh) 實現
+  const ptrElement = document.getElementById('pull-to-refresh');
+  const notesGrid = dom.notesGrid;
+  if (ptrElement && notesGrid) {
+    let ptrStartY = 0;
+    let ptrCurrentY = 0;
+    let isPtrActive = false;
+    let isPtrRefreshing = false;
+    const PTR_THRESHOLD = 75; // 下拉觸發門檻 (px)
+    const PTR_MAX_PULL = 110;
+
+    notesGrid.addEventListener('touchstart', (e) => {
+      // 只有在最頂端時才能觸發下拉重新整理
+      if (notesGrid.scrollTop <= 0 && !isPtrRefreshing) {
+        ptrStartY = e.touches[0].clientY;
+        isPtrActive = true;
+      } else {
+        isPtrActive = false;
+      }
+    }, { passive: true });
+
+    notesGrid.addEventListener('touchmove', (e) => {
+      if (!isPtrActive || isPtrRefreshing) return;
+      ptrCurrentY = e.touches[0].clientY;
+      const diffY = ptrCurrentY - ptrStartY;
+
+      // 只有向下拉且原本位於頂部
+      if (diffY > 0 && notesGrid.scrollTop <= 0) {
+        // 阻尼係數 (越往下拉阻力越大，原生手感)
+        const pullDistance = Math.min(diffY * 0.45, PTR_MAX_PULL);
+        ptrElement.style.height = `${pullDistance}px`;
+
+        const ptrIcon = ptrElement.querySelector('.ptr-icon');
+        const ptrText = ptrElement.querySelector('.ptr-text');
+
+        if (pullDistance >= PTR_THRESHOLD) {
+          ptrElement.classList.add('ptr-ready');
+          if (ptrText) ptrText.textContent = '放開以重新整理';
+        } else {
+          ptrElement.classList.remove('ptr-ready');
+          if (ptrText) ptrText.textContent = '下拉重新整理';
+        }
+      } else {
+        ptrElement.style.height = '0px';
+      }
+    }, { passive: true });
+
+    const endPtr = async () => {
+      if (!isPtrActive || isPtrRefreshing) return;
+      isPtrActive = false;
+
+      const currentHeight = parseFloat(ptrElement.style.height || '0');
+      if (currentHeight >= PTR_THRESHOLD) {
+        // 達到門檻，觸發重新整理！
+        isPtrRefreshing = true;
+        ptrElement.classList.remove('ptr-ready');
+        ptrElement.classList.add('ptr-refreshing');
+        ptrElement.style.height = '50px';
+
+        const ptrIcon = ptrElement.querySelector('.ptr-icon');
+        const ptrText = ptrElement.querySelector('.ptr-text');
+        if (ptrIcon) ptrIcon.textContent = 'progress_activity';
+        if (ptrText) ptrText.textContent = '正在重新整理...';
+
+        try {
+          if (navigator.vibrate) {
+            navigator.vibrate(20); // 震動回饋
+          }
+        } catch (_) {}
+
+        // 如果有 Google Drive 雲端同步且已登入，可觸發雲端檢查或重新載入頁面
+        setTimeout(() => {
+          window.location.reload();
+        }, 350);
+      } else {
+        // 未達門檻，彈性縮回
+        ptrElement.style.height = '0px';
+        ptrElement.classList.remove('ptr-ready');
+      }
+    };
+
+    notesGrid.addEventListener('touchend', endPtr, { passive: true });
+    notesGrid.addEventListener('touchcancel', endPtr, { passive: true });
+  }
+
   // 點擊分類標籤後自動收合手機抽屜
   document.querySelectorAll('.category-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -2475,7 +2560,6 @@ function initEventListeners() {
       }
     });
   });
-
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
