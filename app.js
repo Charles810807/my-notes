@@ -1379,19 +1379,88 @@ function nextLightbox() {
   updateLightboxView();
 }
 
-function downloadCurrentLightboxImage() {
+async function downloadCurrentLightboxImage() {
   const current = state.currentLightboxIndex;
   const imgSrc = state.lightboxImages[current];
   if (!imgSrc) return;
 
-  const a = document.createElement('a');
-  a.href = imgSrc;
-  const ext = imgSrc.includes('image/png') ? 'png' : (imgSrc.includes('image/webp') ? 'webp' : 'jpg');
-  a.download = `記事圖片_${Date.now()}_${current + 1}.${ext}`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  showToast('照片已開始下載！');
+  try {
+    // 判斷副檔名與 MIME 類型
+    let ext = 'jpg';
+    let mimeType = 'image/jpeg';
+    if (imgSrc.startsWith('data:image/png') || imgSrc.endsWith('.png')) {
+      ext = 'png';
+      mimeType = 'image/png';
+    } else if (imgSrc.startsWith('data:image/webp') || imgSrc.endsWith('.webp')) {
+      ext = 'webp';
+      mimeType = 'image/webp';
+    }
+
+    const safeFilename = `筆記照片_${Date.now()}_${current + 1}.${ext}`;
+
+    // 取得 Blob
+    let blob = null;
+    if (imgSrc.startsWith('data:image/')) {
+      // Base64 轉換為 Blob
+      const parts = imgSrc.split(',');
+      const byteString = atob(parts[1]);
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      blob = new Blob([ab], { type: mimeType });
+    } else {
+      // 網路 URL 或本地相對路徑 fetch 成 Blob
+      const res = await fetch(imgSrc);
+      if (res.ok) {
+        blob = await res.blob();
+      }
+    }
+
+    // 針對手機端 (iOS Safari / Android Chrome)：使用 Web Share API 彈出「儲存影像至相簿」
+    if (blob) {
+      const file = new File([blob], safeFilename, { type: blob.type || mimeType });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: '筆記照片',
+            text: '儲存照片'
+          });
+          showToast('已開啟分享選單，可直接點選「儲存影像」存入相簿！');
+          return;
+        } catch (shareErr) {
+          if (shareErr.name === 'AbortError') return; // 使用者主動取消
+          console.log('Web Share 失敗，轉為常規下載:', shareErr);
+        }
+      }
+
+      // 常規下載 (支援 Blob URL)
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = safeFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      showToast('照片已開始下載！若為手機請長按照片直接存入相簿！');
+      return;
+    }
+
+    // Fallback: 直接使用原 imgSrc 下載
+    const a = document.createElement('a');
+    a.href = imgSrc;
+    a.download = safeFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('照片已開始下載！若為手機請長按照片直接存入相簿！');
+  } catch (err) {
+    console.error('下載照片出錯:', err);
+    showToast('請長按畫面上的照片，選擇「儲存至相簿」！');
+  }
 }
 
 // 一鍵打包下載該記事的所有照片 (ZIP 壓縮包)
