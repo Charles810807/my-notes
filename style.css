@@ -1702,7 +1702,7 @@ body {
     font-size: 32px;
   }
 
-  /* 3. 右側詳細內容區：點選記事後全螢幕覆蓋，帶返回按鈕 */
+  /* 3. 右側詳細內容區：點選記事後全螢幕覆蓋，帶返回按鈕與原生左滑返回手勢 */
   .note-view-pane {
     position: absolute;
     top: 0;
@@ -1714,10 +1714,18 @@ body {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     display: none;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.25, 1, 0.5, 1);
+    box-shadow: -4px 0 25px rgba(0, 0, 0, 0.15);
   }
 
   .note-view-pane.mobile-active {
     display: block !important;
+    transform: translateX(0);
+  }
+
+  .note-view-pane.swiping {
+    transition: none !important;
   }
 
   .note-detail-wrapper {

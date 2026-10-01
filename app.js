@@ -885,12 +885,22 @@ async function saveEditedComment() {
   showToast('追加記錄已成功更新！');
 }
 
-function closeMobileDetailView() {
-  if (dom.noteViewPane) {
-    dom.noteViewPane.classList.remove('mobile-active');
-  }
+function closeMobileDetailView(animated = true) {
+  if (!dom.noteViewPane) return;
   if (dom.notesListSection) {
     dom.notesListSection.classList.remove('mobile-hidden');
+  }
+  if (animated && window.innerWidth <= 768) {
+    dom.noteViewPane.classList.remove('swiping');
+    dom.noteViewPane.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+      dom.noteViewPane.classList.remove('mobile-active');
+      dom.noteViewPane.style.transform = '';
+    }, 280);
+  } else {
+    dom.noteViewPane.classList.remove('swiping');
+    dom.noteViewPane.classList.remove('mobile-active');
+    dom.noteViewPane.style.transform = '';
   }
 }
 
@@ -2549,6 +2559,109 @@ function initEventListeners() {
 
     notesGrid.addEventListener('touchend', endPtr, { passive: true });
     notesGrid.addEventListener('touchcancel', endPtr, { passive: true });
+  }
+
+  // 手機端 iOS 原生由左往右滑動返回上一頁 (Swipe Right to Back)
+  const noteViewPane = dom.noteViewPane;
+  if (noteViewPane) {
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+    let isSwipingBack = false;
+    let isHorizontalGesture = null; // null: 未判斷, true: 水平滑動, false: 垂直捲動
+
+    noteViewPane.addEventListener('touchstart', (e) => {
+      if (window.innerWidth > 768) return;
+      if (!noteViewPane.classList.contains('mobile-active')) return;
+
+      const touch = e.touches[0];
+      swipeStartX = touch.clientX;
+      swipeStartY = touch.clientY;
+      isHorizontalGesture = null;
+
+      // 檢查是否從螢幕左邊緣區域滑起 (邊緣 90px 內，或頂部導航列區域)
+      // 支援邊緣滑動或全卡片向右滑動返回
+      if (swipeStartX <= 100 || touch.clientY <= 120) {
+        isSwipingBack = true;
+      } else {
+        isSwipingBack = false;
+      }
+    }, { passive: true });
+
+    noteViewPane.addEventListener('touchmove', (e) => {
+      if (!isSwipingBack || window.innerWidth > 768) return;
+
+      const touch = e.touches[0];
+      const diffX = touch.clientX - swipeStartX;
+      const diffY = touch.clientY - swipeStartY;
+
+      // 判斷手勢方向：如果是垂直捲動就放棄手勢，避免與看文章上下滾動衝突
+      if (isHorizontalGesture === null) {
+        if (Math.abs(diffX) > 8 || Math.abs(diffY) > 8) {
+          if (Math.abs(diffX) > Math.abs(diffY) && diffX > 0) {
+            isHorizontalGesture = true;
+            // 讓底層清單顯示，產生滑動時透出底層的視覺層次
+            if (dom.notesListSection) {
+              dom.notesListSection.classList.remove('mobile-hidden');
+            }
+            noteViewPane.classList.add('swiping');
+          } else {
+            isHorizontalGesture = false;
+            isSwipingBack = false;
+            return;
+          }
+        } else {
+          return;
+        }
+      }
+
+      if (isHorizontalGesture && diffX > 0) {
+        // 跟隨手指移動 (X 方向)
+        noteViewPane.style.transform = `translateX(${diffX}px)`;
+      }
+    }, { passive: true });
+
+    const endSwipe = (e) => {
+      if (!isSwipingBack || !isHorizontalGesture) {
+        isSwipingBack = false;
+        isHorizontalGesture = null;
+        return;
+      }
+
+      const touch = e.changedTouches ? e.changedTouches[0] : null;
+      const diffX = touch ? touch.clientX - swipeStartX : 0;
+      const screenWidth = window.innerWidth;
+
+      noteViewPane.classList.remove('swiping');
+
+      // 滑動超過螢幕 28% 或超過 80px，即視為觸發返回
+      if (diffX > Math.min(screenWidth * 0.28, 90)) {
+        // 成功觸發：滑出螢幕右側並關閉
+        noteViewPane.style.transform = 'translateX(100%)';
+        try {
+          if (navigator.vibrate) navigator.vibrate(15);
+        } catch (_) {}
+
+        setTimeout(() => {
+          noteViewPane.classList.remove('mobile-active');
+          noteViewPane.style.transform = '';
+          if (dom.notesListSection) {
+            dom.notesListSection.classList.remove('mobile-hidden');
+          }
+        }, 260);
+      } else {
+        // 未達門檻：彈回原位
+        noteViewPane.style.transform = 'translateX(0)';
+        setTimeout(() => {
+          noteViewPane.style.transform = '';
+        }, 260);
+      }
+
+      isSwipingBack = false;
+      isHorizontalGesture = null;
+    };
+
+    noteViewPane.addEventListener('touchend', endSwipe, { passive: true });
+    noteViewPane.addEventListener('touchcancel', endSwipe, { passive: true });
   }
 
   // 點擊分類標籤後自動收合手機抽屜
