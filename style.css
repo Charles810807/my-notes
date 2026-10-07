@@ -1876,6 +1876,51 @@ body {
   100% { transform: rotate(360deg); }
 }
 
+/* 記事卡片長按顯示刪除按鈕樣式 */
+.card-delete-quick-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 15;
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-delete-quick-btn .material-symbols-rounded {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.note-card.show-delete .card-delete-quick-btn {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+.note-card.show-delete {
+  border-color: rgba(239, 68, 68, 0.6);
+  background-color: #fff5f5;
+  animation: card-wiggle 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes card-wiggle {
+  0% { transform: rotate(-0.6deg) scale(1.01); }
+  100% { transform: rotate(0.6deg) scale(1.01); }
+}
+
 /* 右下角系統版本標籤 */
 .app-version-badge {
   position: fixed;

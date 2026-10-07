@@ -561,6 +561,10 @@ function renderNotesList() {
     const excerptText = note.content ? escapeHtml(note.content) : (note.images && note.images.length > 0 ? '[包含圖片記錄]' : '無內文');
 
     card.innerHTML = `
+      <!-- 常按顯示之快捷刪除按鈕 -->
+      <button type="button" class="card-delete-quick-btn" title="刪除記事" aria-label="刪除記事">
+        <span class="material-symbols-rounded">close</span>
+      </button>
       <div class="card-top-row">
         <span class="card-category-badge">${escapeHtml(note.category || '未分類')}</span>
         ${note.isPinned ? '<span class="material-symbols-rounded card-pin-badge" title="已置頂">push_pin</span>' : ''}
@@ -574,7 +578,94 @@ function renderNotesList() {
       </div>
     `;
 
-    card.addEventListener('click', () => {
+    // 刪除按鈕點擊事件
+    const btnQuickDelete = card.querySelector('.card-delete-quick-btn');
+    if (btnQuickDelete) {
+      btnQuickDelete.addEventListener('click', (e) => {
+        e.stopPropagation();
+        confirmDeleteNote(note.id);
+      });
+    }
+
+    // 長按 (Long Press) 偵測邏輯：電腦長按滑鼠 或 手機長按螢幕 500ms
+    let longPressTimer = null;
+    let isLongPressTriggered = false;
+    let pressStartX = 0;
+    let pressStartY = 0;
+
+    const startLongPress = (clientX, clientY) => {
+      pressStartX = clientX;
+      pressStartY = clientY;
+      isLongPressTriggered = false;
+      clearTimeout(longPressTimer);
+      longPressTimer = setTimeout(() => {
+        isLongPressTriggered = true;
+        // 先清除其他卡片的刪除狀態
+        document.querySelectorAll('.note-card.show-delete').forEach(c => {
+          if (c !== card) c.classList.remove('show-delete');
+        });
+        card.classList.toggle('show-delete');
+        try {
+          if (navigator.vibrate) navigator.vibrate(25); // 觸覺回饋
+        } catch (_) {}
+      }, 500); // 500ms 觸發長按
+    };
+
+    const cancelLongPress = () => {
+      clearTimeout(longPressTimer);
+    };
+
+    // 觸控事件 (手機)
+    card.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      startLongPress(touch.clientX, touch.clientY);
+    }, { passive: true });
+
+    card.addEventListener('touchmove', (e) => {
+      const touch = e.touches[0];
+      // 如果移動超過 10px (例如在滑動捲動清單)，取消長按
+      if (Math.abs(touch.clientX - pressStartX) > 10 || Math.abs(touch.clientY - pressStartY) > 10) {
+        cancelLongPress();
+      }
+    }, { passive: true });
+
+    card.addEventListener('touchend', cancelLongPress, { passive: true });
+    card.addEventListener('touchcancel', cancelLongPress, { passive: true });
+
+    // 滑鼠事件 (電腦端也支援長按)
+    card.addEventListener('mousedown', (e) => {
+      if (e.button === 0) { // 左鍵
+        startLongPress(e.clientX, e.clientY);
+      }
+    });
+
+    card.addEventListener('mousemove', (e) => {
+      if (Math.abs(e.clientX - pressStartX) > 8 || Math.abs(e.clientY - pressStartY) > 8) {
+        cancelLongPress();
+      }
+    });
+
+    card.addEventListener('mouseup', cancelLongPress);
+    card.addEventListener('mouseleave', cancelLongPress);
+
+    // 一般點擊事件
+    card.addEventListener('click', (e) => {
+      // 若剛剛觸發了長按，不開啟記事詳情
+      if (isLongPressTriggered) {
+        isLongPressTriggered = false;
+        return;
+      }
+      // 若當前卡片正處於顯示刪除按鈕狀態，點擊卡片本體則退出刪除狀態
+      if (card.classList.contains('show-delete')) {
+        card.classList.remove('show-delete');
+        return;
+      }
+      // 點擊其他卡片時，如果有任何卡片處於刪除狀態，一律先復原
+      const hasShowDelete = document.querySelector('.note-card.show-delete');
+      if (hasShowDelete) {
+        document.querySelectorAll('.note-card.show-delete').forEach(c => c.classList.remove('show-delete'));
+        return;
+      }
       selectNote(note.id);
     });
 
